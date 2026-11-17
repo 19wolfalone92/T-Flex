@@ -1,0 +1,24 @@
+name: Tripo v3 check key (read-only)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install client
+        run: python -m pip install -e .
+      - name: Authenticate without generating
+        env:
+          TRIPO_API_KEY: ${{ secrets.TRIPO_API_KEY }}
+        run: |
+          python -c "from tflex_figurines.tripo import TripoClient; TripoClient().balance(); print('Tripo API authentication OK; no generation started')"

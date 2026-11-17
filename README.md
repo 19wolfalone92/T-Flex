@@ -1,56 +1,51 @@
-# T-Flex Figurines — AI → 3D → T-FLEX CAD
+# T-Flex Figurines — Tripo / Meshy → GLB → T-FLEX CAD
 
-Рабочее пространство для создания художественных 3D-фигурок (персонажи, люди, животные, статуэтки) с помощью Meshy 3D и подготовки геометрии для T-FLEX CAD и 3D-печати.
+Проект художественных 3D-фигурок: люди, персонажи, животные, статуэтки.
 
-## Что уже реализовано
+Система содержит **Tripo AI API v3-клиент** для текстовой генерации, создания модели из изображения, проверки задания и скачивания GLB. Meshy 3D можно использовать через подключённый ChatGPT-плагин.
 
-- Проверяемый Python-конвейер: GLB / GLTF / OBJ / STL / PLY → анализ полигональной сетки → масштабирование в миллиметры → STL + OBJ + JSON-отчёт.
-- Поворот модели из Y-up или X-up в Z-up; установка нижней точки на Z=0.
-- Защитный запрет на экспорт негерметичной (not watertight) геометрии по умолчанию. Режим --allow-open разрешает экспорт лишь осознанно, не делает модель готовой к печати.
-- Автоматические тесты в GitHub Actions, без необходимости устанавливать T-FLEX или хранить API-ключи.
+## Быстрая проверка Tripo
 
-## Быстрый старт
+    python -m pip install -e ".[dev]"
+    tflex-tripo balance
 
-Требуется Python 3.10+.
+Для проверки должен быть задан **TRIPO_API_KEY** как переменная окружения. Секрет никогда не коммитить. Подробная настройка Windows и GitHub: **docs/TRIPO.md**.
 
-    python -m venv .venv
-    # Windows:
-    .venv\Scripts\activate
-    # Linux / macOS:
-    source .venv/bin/activate
-    pip install -e ".[dev]"
+## Генерация без неожиданного списания
 
-Получите 3D-модель в Meshy 3D и скачайте оригинальный GLB, OBJ или STL. Не публикуйте личные фотографии или проприетарные файлы в публичном репозитории.
+Предпросмотр без обращения к API:
 
-Проверка исходной сетки:
+    tflex-tripo submit-text --prompt "Cute fox statue with solid base"
 
-    tflex-figurines inspect "models/character.glb" --report "reports/character.json"
+Настоящая кредитная генерация только с флагом:
 
-Подготовка 120-мм фигурки:
+    tflex-tripo submit-text --prompt "Cute fox statue with solid base" --yes-spend-credits
+    tflex-tripo status TASK_ID --wait --timeout 300
+    tflex-tripo download TASK_ID --output models/fox.glb
 
-    tflex-figurines prepare "models/character.glb" --height-mm 120 --up-axis y --output-dir exports
+Для фотографии используйте submit-image --image PRIVATE.png --yes-spend-credits.
 
-Результат: exports/character.stl, exports/character.obj, exports/character.report.json.
+## Подготовка под T-FLEX
 
-Если модель не замкнута, команда завершится с кодом 2, сохранив диагностический отчёт. Исправьте сетку в Blender или другом редакторе и повторите.
+    tflex-figurines inspect models/fox.glb --report reports/fox.json
+    tflex-figurines prepare models/fox.glb --height-mm 120 --up-axis y --output-dir exports
 
-## Ограничения
+На выходе STL/OBJ, координаты с масштабом в мм. При незамкнутой сетке экспорт блокируется; осознанный режим --allow-open не делает сетку готовой к печати.
 
-- STL и OBJ — сеточная геометрия, а не параметрическое твердотельное дерево T-FLEX CAD.
-- STL не хранит единицы измерения; наш экспорт использует численные координаты в мм, проверьте масштаб при импорте.
-- Автоматический анализ watertight не заменяет проверку минимальной толщины, нависающих элементов, контакта деталей, устойчивости и слайсер.
-- OBJ в этой цепочке служит геометрическим экспортом; исходные материалы/текстуры Meshy могут не сохраниться.
-- Прямое управление установленным T-FLEX CAD через Open API пока НЕ реализовано: требуется версия, лицензия и Windows-компьютер с T-FLEX.
+**Это полигональная сетка, не параметрическая CAD-модель.** Дополнительно проверяйте толщины, нависания, устойчивость в слайсере. T-FLEX Open API пока не интегрирован с установленным CAD.
 
-См. docs/TFLEX_IMPORT.md, docs/INTEGRATIONS.md и docs/ROADMAP.md.
+## Честный статус
 
-## Разработка
+- Программная интеграция Tripo v3 и тесты подготовлены.
+- API-ключ создан пользователем, но его наличие в GitHub Secret / локальной среде пока не проверено.
+- Реальные кредитные генерации Tripo не запускались.
+- Работу на компьютере в T-FLEX надо проверить отдельно.
 
-    pip install -e ".[dev]"
+Документация: **docs/TRIPO.md**, **docs/TFLEX_IMPORT.md**, **docs/INTEGRATIONS.md**, **docs/ROADMAP.md**.
+
+## Тесты
+
+    python -m pip install -e ".[dev]"
     pytest -q
 
-Изменения проходят через отдельную ветку и pull request; main не используется для непроверенных изменений.
-
-## Правила безопасности
-
-Никаких API-токенов в git, никаких автоматических затрат Meshy-кредитов, никаких автоматических публикаций личных 3D-объектов. Создание модели в Meshy — отдельное подтверждаемое действие.
+Основной CI использует только моки, не требует ключа и не расходует кредиты. Отдельная ручная GitHub Actions проверка TRIPO_API_KEY выполняет только GET /account/balance.
