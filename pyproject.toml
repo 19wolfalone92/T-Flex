@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tflex-figurines"
-version = "0.2.0"
+version = "0.3.0"
 description = "Figurine mesh prep and Tripo v3 API for T-FLEX CAD"
 requires-python = ">=3.10"
 dependencies = [
@@ -20,6 +20,9 @@ dev = ["pytest>=8,<10"]
 [project.scripts]
 tflex-figurines = "tflex_figurines.cli:main"
 tflex-tripo = "tflex_figurines.tripo_cli:main"
+tflex-studio = "tflex_figurines.studio_cli:main"
+tflex-meshy = "tflex_figurines.meshy_cli:main"
+tflex-audit = "tflex_figurines.quality:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
