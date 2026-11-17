@@ -30,3 +30,7 @@ reports/
 *.key
 *.pem
 secrets.*
+
+builds/
+private/
+*.webp
