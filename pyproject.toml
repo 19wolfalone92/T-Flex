@@ -26,6 +26,7 @@ tflex-meshy = "tflex_figurines.meshy_cli:main"
 tflex-audit = "tflex_figurines.quality:main"
 tflex-reference = "tflex_figurines.reference:main"
 tflex-contact-sheet = "tflex_figurines.contact_sheet:main"
+tflex-pipeline = "tflex_figurines.pipeline:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
