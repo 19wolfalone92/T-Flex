@@ -2,6 +2,10 @@ name: Tripo v3 check key (read-only)
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/tripo-connection.yml
 
 permissions:
   contents: read
@@ -19,6 +23,6 @@ jobs:
         run: python -m pip install -e .
       - name: Authenticate without generating
         env:
-          TRIPO_API_KEY: ${{ secrets.TRIPO_API_KEY }}
+          TRIPO_API_KEY: ${{ secrets.TRIPO_AL }}
         run: |
           python -c "from tflex_figurines.tripo import TripoClient; TripoClient().balance(); print('Tripo API authentication OK; no generation started')"
