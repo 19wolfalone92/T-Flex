@@ -38,6 +38,9 @@ def load_geometry(source: Path) -> trimesh.Trimesh:
     if not np.all(np.isfinite(mesh.vertices)):
         raise ValueError("Model contains non-finite coordinates")
     mesh.remove_unreferenced_vertices()
+    # STL stores separate vertices per triangle; weld coincident vertices before
+    # topology checks or even a closed cube will be misclassified as open.
+    mesh.merge_vertices()
     return mesh
 
 
