@@ -32,7 +32,7 @@
 
 ## 3. Генерация по фотографии
 
-Файл остаётся локальным в публичном GitHub, но будет передан Tripo при настоящем запуске:
+Файл не требуется загружать в публичный GitHub; при настоящем запуске он передаётся из локального компьютера непосредственно в Tripo:
 
     tflex-tripo submit-image --image "C:\Private\ref.png"
     tflex-tripo submit-image --image "C:\Private\ref.png" --yes-spend-credits
