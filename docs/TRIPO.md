@@ -14,7 +14,7 @@
 
 Не вставляйте реальный ключ в GitHub README, issue, PR или чат и не публикуйте его на скриншотах.
 
-**GitHub Actions:** в 19wolfalone92/T-Flex откройте Settings → Secrets and variables → Actions → New repository secret. Имя: **TRIPO_API_KEY**. Значение: созданный ключ. Затем откройте Actions → Tripo v3 check key (read-only) → Run workflow. Эта ручная проверка использует GET /account/balance; генерации моделей и расхода кредитов нет.
+**GitHub Actions:** в 19wolfalone92/T-Flex откройте Settings → Secrets and variables → Actions → New repository secret. Имя: **TRIPO_AL** (именно так назван существующий секрет). Значение: созданный ключ. После объединения изменений проверка запускается автоматически на `main`. Её также можно запустить через Actions → Tripo v3 check key (read-only) → Run workflow. Эта проверка использует GET /account/balance; генерации моделей и расхода кредитов нет.
 
 Важно: добавление GitHub Secret **не подключает Tripo напрямую к ChatGPT**. У ChatGPT пока нет подключённого Tripo-плагина, а секрет из GitHub нельзя прочесть обратно через чат.
 
@@ -62,4 +62,4 @@
 | tflex-tripo status TASK_ID | Проверка/ожидание статуса | Нет |
 | tflex-tripo download TASK_ID --output FILE.glb | Скачивание модели | Нет |
 
-Мок-тесты в CI не доказывают, что ключ пользователя уже подключён. Для этого нужна отдельная ручная проверка через GitHub Secret или локальный PowerShell.
+Мок-тесты в CI не доказывают, что ключ пользователя уже подключён. Для этого нужна отдельная ручная проверка через GitHub Secret **TRIPO_AL** (передаётся процессу как переменная `TRIPO_API_KEY`) или локальный PowerShell.
