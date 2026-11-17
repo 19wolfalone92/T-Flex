@@ -145,9 +145,7 @@ def test_meshy_submit_preserves_order_and_credit_guard(tmp_path, monkeypatch, ca
     files = []
     for name in ["front.png", "back.png"]:
         f = tmp_path / name
-        f.write_bytes(b"PNG
-
-content")
+        f.write_bytes(b"fake-png-content")
         files.append(f)
     monkeypatch.delenv("MESHY_API_KEY", raising=False)
     assert meshy_studio(["submit", "--images", *map(str, files)]) == 0
