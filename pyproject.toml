@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tflex-figurines"
+version = "0.1.0"
+description = "Offline mesh preflight and export for T-FLEX CAD figurines"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.24,<3",
+  "trimesh>=4.0,<5",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10"]
+
+[project.scripts]
+tflex-figurines = "tflex_figurines.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

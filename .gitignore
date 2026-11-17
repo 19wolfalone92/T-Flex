@@ -1,0 +1,32 @@
+# Local Python environment
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+
+# Generated 3D assets and local source photos are private unless explicitly curated
+models/
+exports/
+reports/
+*.glb
+*.gltf
+*.obj
+*.stl
+*.ply
+*.3mf
+*.fbx
+*.mtl
+*.blend
+*.png
+*.jpg
+*.jpeg
+
+# Never commit credentials
+.env
+.env.*
+*.key
+*.pem
+secrets.*
