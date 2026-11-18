@@ -1,0 +1,31 @@
+name: FREE real 3D figurine replica via Hi3DGen (no credits)
+on:
+  push:
+    branches: [experiment/recreate-winged-character-20261118]
+    paths: [.github/workflows/free-figurine-replica.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  model:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 32
+    env:
+      SOURCE_URL: 'https://assets.meshy.ai/efb00ba8-043f-4ff5-829b-84a69a233d37/uploads/0_01a1ed78-d307-731f-99e4-04dc78479958.png?Expires=1795132800&Signature=I3sj6d~HsbYgBRkqOo3h4nbcFpCB~jEISWQf9m1IjguJaUnXE-u1nlKZW~nXObNVsxw-J6Ie~d1agJN0D-p0kd7ASLmmPjeF5mMAfx~DFDFGnWOBUyuh1MnxmWbyr-zUkwIuH-akLy97q80WQhXMBuiSf0o-yvRjpsvwrwDAtwjpQoCsJVADQ8hrW5i6Hg8X4EsejqixLQJbssHB4fusNxmpnrp1D86F3zKRqdJIOFI2cGr9bRN6tjJ1YH7WJVwlUU7fDCwr3GnQy4weC~0u~O8~sFCJXeOH6g0rf0itTO5wQzvQXIunZHHcHGm00rX~WF-2UYAzfGT0-4WeXdp8fQ__&Key-Pair-Id=K1VGYTHIYLM9UM'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install only public free inference clients + mesh QA
+        run: python -m pip install 'gradio_client>=1.12,<3' requests Pillow trimesh numpy
+      - name: Reconstruct chibi character and write STL
+        run: python scripts/try_public_hi3dgen.py
+      - name: Preserve generated GLB and STL for visual review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: winged-character-free-open-source-3d
+          path: /tmp/figurine-replica/
+          retention-days: 7
+          if-no-files-found: warn
