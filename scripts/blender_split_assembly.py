@@ -219,7 +219,7 @@ def run():
             if not triangles or len(triangles) > 15_000_000:
                 raise ValueError("Invalid or oversized triangulated STL export")
             with target.open("wb") as output:
-                output.write(b"T-FLEX FIGURINE STUDIO STL".ljust(80, b"\\x00"))
+                output.write(b"T-FLEX FIGURINE STUDIO STL".ljust(80, bytes([0])))
                 output.write(struct.pack("<I", len(triangles)))
                 world = chosen.matrix_world
                 for triangle in triangles:
