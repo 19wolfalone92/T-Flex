@@ -55,6 +55,10 @@ def run():
     bpy.context.view_layer.objects.active = obj
     bpy.ops.object.select_all(action="DESELECT")
     obj.select_set(True)
+    # Blender's STL importer can share mesh datablocks with other imported objects;
+    # transform_apply refuses to mutate multi-user data. Detach first.
+    if obj.data.users > 1:
+        obj.data = obj.data.copy()
     bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
     original = bmesh.new()
     original.from_mesh(obj.data)
