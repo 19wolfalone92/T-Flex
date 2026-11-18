@@ -1,0 +1,30 @@
+name: Free image-to-3D API discovery — no credits
+on:
+  push:
+    branches: [experiment/recreate-winged-character-20261118]
+    paths: [.github/workflows/opensource3d-discovery.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install 'gradio_client>=1.12,<3' requests
+      - name: Read public Space API schemas (no generation)
+        run: |
+          python - <<'PY'
+          from gradio_client import Client
+          for name in ('stabilityai/TripoSR','JeffreyXiang/TRELLIS','microsoft/TRELLIS.2-4B'):
+              try:
+                  print('\n===SPACE',name, '===',flush=True)
+                  client=Client(name, verbose=False)
+                  print('API:',repr(client.view_api()),flush=True)
+              except Exception as exc:
+                  print('NOT AVAILABLE:',type(exc).__name__,str(exc)[:350],flush=True)
+          PY
