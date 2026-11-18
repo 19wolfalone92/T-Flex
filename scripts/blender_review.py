@@ -77,6 +77,9 @@ def run() -> None:
     scene = bpy.context.scene
     scene.render.engine = "CYCLES"
     scene.cycles.samples = options.samples
+    # Ubuntu's Blender package may be built WITHOUT OpenImageDenoiser.
+    # Do not rely on its default Cycles denoiser; otherwise render crashes.
+    scene.view_layers[0].cycles.use_denoising = False
     scene.render.resolution_x = options.resolution
     scene.render.resolution_y = options.resolution
     scene.render.resolution_percentage = 100
