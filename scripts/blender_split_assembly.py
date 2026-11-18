@@ -205,7 +205,37 @@ def run():
         else:
             part_copy = None
         target.parent.mkdir(parents=True, exist_ok=True)
-        bpy.ops.wm.stl_export(filepath=str(target), export_selected_objects=True, apply_modifiers=True)
+        # Do not depend on Blender's version-specific STL exporter operator.
+        # Blender 4.0 Linux packages can import STL but lack wm.stl_export.
+        # Stream a standard binary STL directly from evaluated triangle geometry.
+        import struct
+        chosen = part_copy if part_copy is not None else part
+        bpy.context.view_layer.update()
+        evaluated = chosen.evaluated_get(bpy.context.evaluated_depsgraph_get())
+        mesh = evaluated.to_mesh()
+        try:
+            mesh.calc_loop_triangles()
+            triangles = mesh.loop_triangles
+            if not triangles or len(triangles) > 15_000_000:
+                raise ValueError("Invalid or oversized triangulated STL export")
+            with target.open("wb") as output:
+                output.write(b"T-FLEX FIGURINE STUDIO STL".ljust(80, b"\\x00"))
+                output.write(struct.pack("<I", len(triangles)))
+                world = chosen.matrix_world
+                for triangle in triangles:
+                    v0, v1, v2 = [
+                        world @ mesh.vertices[index].co for index in triangle.vertices
+                    ]
+                    normal = (v1-v0).cross(v2-v0)
+                    if normal.length_squared > 1e-22:
+                        normal.normalize()
+                    output.write(struct.pack(
+                        "<12fH", normal.x, normal.y, normal.z,
+                        v0.x, v0.y, v0.z, v1.x, v1.y, v1.z,
+                        v2.x, v2.y, v2.z, 0,
+                    ))
+        finally:
+            evaluated.to_mesh_clear()
         if part_copy:
             bpy.data.objects.remove(part_copy, do_unlink=True)
 
