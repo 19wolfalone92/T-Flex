@@ -84,3 +84,23 @@ jobs:
           path: /tmp/tflex-fdm/result/
           if-no-files-found: warn
           retention-days: 7
+
+  windows-bridge-parser:
+    runs-on: windows-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse actual Windows PowerShell bridge without launching CAD
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $PWD 'scripts/windows/tflex18_prepare.ps1'),
+            [ref]$tokens, [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
+          Write-Host 'Windows T-FLEX CAD 18 external-command bridge PowerShell parses correctly.'
