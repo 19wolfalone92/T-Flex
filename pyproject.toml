@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tflex-figurines"
-version = "0.3.0"
-description = "Figurine mesh prep and Tripo v3 API for T-FLEX CAD"
+version = "0.4.0"
+description = "Quality-first AI figurines, mono FDM assembly and T-FLEX CAD 18 bridge"
 requires-python = ">=3.10"
 dependencies = [
   "numpy>=1.24,<3",
@@ -27,6 +27,9 @@ tflex-audit = "tflex_figurines.quality:main"
 tflex-reference = "tflex_figurines.reference:main"
 tflex-contact-sheet = "tflex_figurines.contact_sheet:main"
 tflex-pipeline = "tflex_figurines.pipeline:main"
+tflex-hi3d = "tflex_figurines.hi3d_cli:main"
+tflex-split = "tflex_figurines.splitter:main"
+tflex-extract-parts = "tflex_figurines.parts:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

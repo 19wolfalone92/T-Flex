@@ -1,0 +1,144 @@
+name: FDM multipart figure — actual Blender native booleans
+
+on:
+  push:
+    branches: ["feature/hi3d-mono-print-assembly-*"]
+    paths:
+      - ".github/workflows/mono-assembly-smoke.yml"
+      - "scripts/blender_split_assembly.py"
+  pull_request:
+    paths:
+      - ".github/workflows/mono-assembly-smoke.yml"
+      - "scripts/blender_split_assembly.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  exact-split:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install real Blender
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y blender
+          blender --version | head -2
+      - name: Install local Python 3D tests
+        run: python -m pip install -e ".[dev]"
+      - name: Create reproducible single solid 120mm fixture
+        run: |
+          mkdir -p /tmp/tflex-fdm
+          python - <<'PY'
+          import trimesh
+          shape = trimesh.creation.cylinder(radius=23, height=120, sections=96)
+          shape.export('/tmp/tflex-fdm/cylinder_120mm.stl')
+          # Noncylindrical, organic-ish statuette silhouette with changing radius:
+          # more realistic Blender boolean stress than a perfect cylinder.
+          profile = [
+              (0,-60),(24,-60),(24,-56),(18,-51),(18,-31),
+              (21,-15),(20,0),(13,14),(12,25),(14,37),
+              (20,49),(15,53),(0,60),
+          ]
+          pawn = trimesh.creation.revolve(profile, sections=96)
+          assert pawn.is_watertight and pawn.volume > 0
+          pawn.export('/tmp/tflex-fdm/figurine-shaped-120mm.stl')
+          PY
+      - name: Split 120 mm solid using real Blender boolean operators
+        run: |
+          blender -b --python scripts/blender_split_assembly.py -- \
+            --input /tmp/tflex-fdm/cylinder_120mm.stl \
+            --output-dir /tmp/tflex-fdm/result \
+            --cut-ratio 0.5 \
+            --pin-diameter-mm 3.0 \
+            --radial-clearance-mm 0.20 \
+            --hole-depth-mm 5.5
+      - name: Split noncylindrical sculpt silhouette with the same parameters
+        run: |
+          blender -b --python scripts/blender_split_assembly.py -- \
+            --input /tmp/tflex-fdm/figurine-shaped-120mm.stl \
+            --output-dir /tmp/tflex-fdm/figurine-pieces \
+            --cut-ratio 0.5 \
+            --pin-diameter-mm 3.0 \
+            --radial-clearance-mm 0.20 \
+            --hole-depth-mm 5.5
+      - name: Verify organic-like second trial exports (independent trimesh)
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import trimesh, json
+          root = Path('/tmp/tflex-fdm/figurine-pieces')
+          manifest = json.loads((root/'assembly.json').read_text())
+          assert len(manifest['dowels_xy_mm']) == 2
+          for kind in ('assembly', 'print'):
+              files = sorted((root/kind).glob('*.stl'))
+              assert len(files) >= 4
+              for f in files:
+                  m = trimesh.load_mesh(str(f), force='mesh')
+                  assert m.is_watertight, f'{f} open'
+                  assert m.volume > 0, f'{f} nonpositive volume'
+          print('PASS: noncylindrical statuette silhouette, split and two-pin FDM assembly.')
+          PY
+      - name: Verify EVERY exported STL in independent geometry library
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json, trimesh
+          root = Path('/tmp/tflex-fdm/result')
+          manifest = json.loads((root/'assembly.json').read_text())
+          assert manifest['print_ready_certified'] is False
+          assert manifest['tflex_cad_target'].startswith('T-FLEX CAD 18')
+          assert len(manifest['dowels_xy_mm']) == 2
+          for kind in ['assembly', 'print']:
+              for f in (root/kind).glob('*.stl'):
+                  mesh = trimesh.load_mesh(f, force='mesh')
+                  assert mesh.is_watertight, f'{f} not watertight'
+                  assert mesh.is_winding_consistent, f'{f} inconsistent winding'
+                  assert mesh.volume > 0, f'{f} nonpositive volume'
+                  if kind == 'print':
+                      assert abs(mesh.bounds[0][2]) < .02, f'print does not start at bed: {f}'
+          for kind in ['lower', 'upper', 'pin_1', 'pin_2']:
+              assert (root/'print'/(kind+'.stl')).is_file()
+              assert (root/'assembly'/(kind+'.stl')).is_file()
+          assert (root/'print/test_socket.stl').is_file()
+          assert (root/'parts.csv').is_file()
+          a = trimesh.load_mesh(root/'assembly/lower.stl')
+          b = trimesh.load_mesh(root/'assembly/upper.stl')
+          assert abs(a.bounds[1,2] - b.bounds[0,2]) < .05
+          print("PASS: two closed halves, two separate pin STLs, coupon, BOM and aligned CAD assembly.")
+          PY
+      - name: Publish nonprivate proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mono-fdm-real-blender-proof
+          path: |
+            /tmp/tflex-fdm/result/
+            /tmp/tflex-fdm/figurine-pieces/
+          if-no-files-found: warn
+          retention-days: 7
+
+  windows-bridge-parser:
+    runs-on: windows-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse actual Windows PowerShell bridge without launching CAD
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $PWD 'scripts/windows/tflex18_prepare.ps1'),
+            [ref]$tokens, [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
+          Write-Host 'Windows T-FLEX CAD 18 external-command bridge PowerShell parses correctly.'
