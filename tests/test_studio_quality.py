@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 import pytest
+from PIL import Image
 import trimesh
 
 from tflex_figurines.quality import audit, compare, mesh_quality_report
@@ -53,7 +54,7 @@ def test_studio_dry_run_never_uses_credits(monkeypatch, capsys, tmp_path):
     assert tripo_studio(["text", "--prompt", "Detailed wolf statuette"]) == 0
     assert '"dry_run": true' in capsys.readouterr().out
     image = tmp_path / "front.png"
-    image.write_bytes(b"some image bytes")
+    Image.new("RGB", (320, 320), (80, 90, 100)).save(image)
     assert tripo_studio(["image", "--image", str(image)]) == 0
     assert tripo_studio(["auto-views", "--image", str(image)]) == 0
     assert tripo_studio(["multiview", "--front", str(image)]) == 2
@@ -85,7 +86,7 @@ def test_tripo_multiview_uploads_in_canonical_order(tmp_path):
     images = {}
     for view in ("front", "left", "back"):
         file = tmp_path / f"{view}.png"
-        file.write_bytes(b"valid-length-placeholder")
+        Image.new("RGB", (320, 320), (80, 90, 100)).save(file)
         images[view] = file
     unordered = {"back": images["back"], "front": images["front"], "left": images["left"]}
     assert submit_multiview(client, unordered, profile="sculpt") == "task-multi"
@@ -102,7 +103,7 @@ def test_tripo_multiview_missing_or_bad_reference_is_rejected_before_upload(tmp_
     session = Mock()
     client = TripoClient(api_key="key", session=session)
     front = tmp_path / "front.png"
-    front.write_bytes(b"ref")
+    Image.new("RGB", (320, 320), (80, 90, 100)).save(front)
     with pytest.raises(ValueError):
         submit_multiview(client, {"front": front})
     with pytest.raises(ValueError):
@@ -115,7 +116,7 @@ def test_generated_view_chain_is_two_explicitly_billed_tasks(tmp_path):
     session.request.side_effect = [ok({"file_token": "front"}), ok({"task_id": "view-task"}), ok({"task_id": "3d-task"})]
     client = TripoClient(api_key="key", session=session)
     front = tmp_path / "front.png"
-    front.write_bytes(b"abc")
+    Image.new("RGB", (320, 320), (80, 90, 100)).save(front)
     assert generate_synthetic_views(client, front) == "view-task"
     assert submit_generated_views(client, "view-task", profile="display") == "3d-task"
     first_task = session.request.call_args_list[1]
@@ -145,7 +146,7 @@ def test_meshy_submit_preserves_order_and_credit_guard(tmp_path, monkeypatch, ca
     files = []
     for name in ["front.png", "back.png"]:
         f = tmp_path / name
-        f.write_bytes(b"fake-png-content")
+        Image.new("RGB", (320, 320), (80, 90, 100)).save(f)
         files.append(f)
     monkeypatch.delenv("MESHY_API_KEY", raising=False)
     assert meshy_studio(["submit", "--images", *map(str, files)]) == 0
@@ -195,3 +196,18 @@ def test_audit_multiple_shells_is_flagged():
     assert result["separate_shells"] == 2
     assert result["topology_gate"] is False
     assert any("separate shells" in s for s in result["needs_review"])
+
+
+def test_rejects_corrupt_and_tiny_reference_before_network(tmp_path):
+    from tflex_figurines.tripo import image_mime
+    from tflex_figurines.meshy_quality import image_data_uri
+
+    corrupt = tmp_path / "fake.png"
+    corrupt.write_bytes(b"not a real PNG image")
+    small = tmp_path / "small.png"
+    Image.new("RGB", (120, 120), (100, 100, 100)).save(small)
+    for source in [corrupt, small]:
+        with pytest.raises(ValueError):
+            image_mime(source)
+        with pytest.raises(ValueError):
+            image_data_uri(source)
