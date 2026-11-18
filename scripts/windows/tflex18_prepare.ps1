@@ -6,7 +6,8 @@ param(
     [double] $CutRatio = 0.50,
     [double] $PinMM = 3.0,
     [double] $ClearanceMM = 0.20,
-    [string] $UpAxis = ""
+    [string] $UpAxis = "",
+    [switch] $SemanticParts
 )
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
@@ -53,6 +54,15 @@ if ([string]::IsNullOrWhiteSpace($UpAxis)) {
     $UpAxis = if ($ext -in @(".glb", ".gltf")) { "y" } else { "z" }
 }
 if ($UpAxis -notin @("x", "y", "z")) { throw "UpAxis must be x/y/z" }
+if ($SemanticParts) {
+    Write-Host 'Hi3D semantic multi-part GLB: extracting *existing* separate pieces...'
+    & $py.Source -3 -m tflex_figurines.parts "$InputModel" --height-mm "$height" --output-dir "$parts"
+    if ($LASTEXITCODE -ne 0) { throw "Semantic extraction blocked; original model needs manual repair" }
+    Write-Host "Independent print STLs, CAD-aligned STLs and BOM are in $parts"
+    Write-Host 'Verify each pin/ball/dovetail joint with a test print and physical fit.'
+    Start-Process explorer.exe -ArgumentList ('"' + $parts + '"')
+    exit 0
+}
 Write-Host "Preflight source geometry and orient it (height $height mm, axis $UpAxis)..."
 & $py.Source -3 -m tflex_figurines.pipeline "$InputModel" --height-mm "$height" --up-axis "$UpAxis" --output-dir "$ready"
 if ($LASTEXITCODE -ne 0) { throw "Geometry preflight failed; inspect $ready before print splitting" }
