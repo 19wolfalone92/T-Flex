@@ -51,6 +51,32 @@ tflex-hi3d download TASK_ID --output .\models\hi3d.glb
 
 Для одноцветной печати профили по умолчанию создают только геометрию. Текстуры PBR **не добавляют печатных деталей**.
 
+## Рекомендуемый вариант для сложной разноцветной фигурки: официальный Hi3D Split-to-Print
+
+Hi3D предоставляет специальный API **3D Model Split** с шаблонами разбиения персонажей и соединительными элементами. Мы реализовали дополнительную интеграцию с официальным endpoint `/split/create-task`, а не пытались заменить её одним горизонтальным разрезом:
+
+- `--template a` — 6 частей; `b` — 5; `c` / `d` — по 4; `e` — 3; `f` — 2.
+- `--joint pin` — соединительные штифты; альтернативы `ball`, `dovetail`, `none`.
+- `--kind general --level medium` — обычные предметы, не человек/персонаж.
+
+Документация производителя:
+https://docs.hi3d.ai/en/api/api-reference/list/split-create-task
+
+```powershell
+# Сначала ТОЛЬКО проверить параметры, без обращения к API:
+tflex-hi3d split --mesh .\models\figurine.glb --kind character --template a --joint pin
+# Отдельная ПЛАТНАЯ операция, только по явному согласию:
+tflex-hi3d split --mesh .\models\figurine.glb --kind character --template a --joint pin --yes-spend-credits
+tflex-hi3d split-status TASK_ID --wait
+tflex-hi3d split-download TASK_ID --output .\models\character_split.glb
+# ЛОКАЛЬНЫЙ безопасный экспорт отдельных элементов, кредитов не тратит:
+tflex-extract-parts .\models\character_split.glb --height-mm 120 --output-dir .\builds\split_to_print
+```
+
+`tflex-extract-parts` проверяет замкнутость каждого отдельного элемента и готовит `assembly/part_XX.stl` (общая координатная система для T-FLEX), `print/part_XX.stl` (каждый на столе Z=0), `parts.csv` и `assembly.json`. **Положительная проверка этой команды не подтверждает допуски суставов, прочность и толщину.** Чтобы печатать разными цветами на одноэкструдерном принтере, печатают разные файлы по одному, меняя катушку между партиями.
+
+Windows T-FLEX 18 мост поддерживает готовые Hi3D split GLB через параметр `-SemanticParts` у PowerShell-скрипта `scripts/windows/tflex18_prepare.ps1`. В обычном режиме использует локальный 2-part Blender cut. **Ни одно действие Split-to-Print не запускается автоматически после генерации модели**: Hi3D Split имеет отдельную стоимость.
+
 ## Модульная печать и соединители
 
 **Условно принят FDM принтер**, потому что пользователь указал одноцветный принтер, но не сообщил технологию. Это не гарантия — одноцветным бывает и фотополимерный принтер. До реального заказа требуется проверить FDM/SLA, сопло/материал/габариты.
