@@ -1,0 +1,109 @@
+name: Publish verified figurine STL and T-FLEX STEP release
+
+on:
+  push:
+    branches:
+      - feature/publish-figurine-stl-step-release-20261118
+    paths:
+      - .github/workflows/figurine-release.yml
+      - scripts/figurine_release_builder.py
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: figurine-step-stl-release-20261118
+  cancel-in-progress: false
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Retrieve independently generated source model from earlier successful GitHub Actions run
+        uses: actions/download-artifact@v4
+        with:
+          run-id: 44325495623
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: winged-character-free-open-source-3d
+          path: /tmp/figurine-source
+      - name: Inspect source provenance and reject incomplete source files
+        run: |
+          test -s /tmp/figurine-source/figurine_150mm_NEEDS_SLICER_REVIEW.stl
+          test -s /tmp/figurine-source/original.glb
+          ls -lh /tmp/figurine-source
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install open-source geometry and STEP CAD libraries
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "cadquery>=2.6,<3" "vtk>=9.4,<10" "trimesh>=4.8,<5" "numpy>=1.26,<3" "networkx>=3,<4"
+      - name: Rebuild real printable STL and T-FLEX STEP CAD assembly
+        run: |
+          python scripts/figurine_release_builder.py \
+            /tmp/figurine-source/figurine_150mm_NEEDS_SLICER_REVIEW.stl \
+            /tmp/figurine-release/kit
+      - name: Independent print geometry and ZIP tests
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json, zipfile, trimesh
+          p=Path('/tmp/figurine-release/kit')
+          zip_path=p.parent/'Winged_Character_TFLEX_150mm_READY_FILES.zip'
+          assert zip_path.is_file() and zip_path.stat().st_size>15_000_000
+          q=json.loads((p/'QA_MANIFEST.json').read_text())
+          assert q['not_certified_for_printer'] is True
+          assert q['no_mechanical_dowels'] is True
+          assert q['full_character']['triangles']==301248, q['full_character']
+          for name in ('01_CHARACTER_FULL_150mm.stl','02_LOWER_BODY_on_bed.stl',
+                       '03_UPPER_BODY_WITH_WINGS_on_bed.stl','04_STAND_BASE_94x64mm.stl'):
+              m=trimesh.load_mesh(p/'STL_PRINT'/name,force='mesh')
+              assert m.is_watertight and m.is_winding_consistent and m.volume>0
+              assert abs(m.bounds[0][2])<.02, (name,m.bounds)
+          assert (p/'T-FLEX_Assembly_3_Parts.step').stat().st_size>500000
+          with zipfile.ZipFile(zip_path) as z:
+              assert z.testzip() is None
+              assert 'T-FLEX_Assembly_3_Parts.step' in z.namelist()
+              assert 'STL_PRINT/01_CHARACTER_FULL_150mm.stl' in z.namelist()
+              assert 'READ_BEFORE_PRINTING_RU.txt' in z.namelist()
+          print('PASS: full 150mm STL, two split print bodies, stand, CAD STEP, ZIP integrity')
+          PY
+      - name: Add release notes documenting quality limits
+        run: |
+          cat > /tmp/figurine-release/RELEASE_NOTES.md <<'EOF'
+          **150-mm Gothic Winged Character, T-FLEX CAD 18 + mono-colour 3D printing**
+          
+          Download **Winged_Character_TFLEX_150mm_READY_FILES.zip** below.
+          
+          - STL: entire chibi figurine (301,248 triangles), lower 66 mm, upper 84 mm with wings, oval stand.
+          - STEP: CAD-compatible three-solid assembly and separate faceted STEP part solids.
+          - GLB: complete mobile-viewer figurine + stand.
+          - All STL surfaces are watertight. CAD STEP was validated via independent STEP read-back.
+          
+          **Important:** This is the earlier AI-reconstructed 3D sculpt, **not** a geometrically identical high-detail 3D version of the later concept image. The STEP version is faceted/simplified for CAD editing. Body halves have **flat glue seam only**, no pegs. Slicer, wings' minimum wall thickness, support placement, physical fit and printing remain unverified. See README and QA manifest inside ZIP.
+          EOF
+      - name: Publish downloadable ZIP to GitHub Releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "figurine-150mm-tflex18-20261118" \
+            "/tmp/figurine-release/Winged_Character_TFLEX_150mm_READY_FILES.zip" \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "Winged Character 150 mm — STL + T-FLEX CAD 18 STEP" \
+            --notes-file /tmp/figurine-release/RELEASE_NOTES.md \
+            --latest=false
+      - name: Preserve reproducible build and full set of assets
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Winged_Character_TFLEX_150mm_Github_Release_Backup
+          path: |
+            /tmp/figurine-release/Winged_Character_TFLEX_150mm_READY_FILES.zip
+            /tmp/figurine-release/kit/QA_MANIFEST.json
+          retention-days: 30
+          if-no-files-found: warn
