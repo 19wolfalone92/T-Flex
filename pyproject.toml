@@ -29,6 +29,7 @@ tflex-contact-sheet = "tflex_figurines.contact_sheet:main"
 tflex-pipeline = "tflex_figurines.pipeline:main"
 tflex-hi3d = "tflex_figurines.hi3d_cli:main"
 tflex-split = "tflex_figurines.splitter:main"
+tflex-extract-parts = "tflex_figurines.parts:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
