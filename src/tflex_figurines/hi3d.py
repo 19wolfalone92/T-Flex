@@ -117,10 +117,12 @@ class Hi3DClient:
             "request_type": "1" if geometry_only else "3",
             "model": "hi3dv3.0",
             **PROFILES[profile],
-            "pbr": "0" if geometry_only else "1",
             "rmbg": "1",
             "format": "2",  # GLB for downstream pipeline
         }
+        if not geometry_only:
+            # PBR is documented only for request_type 2/3.
+            data["pbr"] = "1"
         with ExitStack() as stack:
             if len(views) == 1:
                 path = views["front"]
