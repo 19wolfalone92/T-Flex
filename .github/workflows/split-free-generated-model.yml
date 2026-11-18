@@ -1,0 +1,62 @@
+name: FREE FDM cut and joints from independent reconstruction
+on:
+  push:
+    branches: [experiment/recreate-winged-character-20261118]
+    paths: [.github/workflows/split-free-generated-model.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  split:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 28
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          run-id: 44325495623
+          github-token: ${{ github.token }}
+          name: winged-character-free-open-source-3d
+          path: /tmp/figure-source
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e ".[dev]"
+      - name: Repair tiny holes, orient upright and scale to 150 mm
+        run: |
+          python - <<'PY'
+          import trimesh
+          m=trimesh.load('/tmp/figure-source/original.glb',force='scene').dump(concatenate=True)
+          assert len(m.faces)>300000
+          m.apply_transform([[1,0,0,0],[0,0,-1,0],[0,1,0,0],[0,0,0,1]])
+          m.apply_scale(150/float(m.extents[2]))
+          m.apply_translation([-m.centroid[0],-m.centroid[1],-m.bounds[0,2]])
+          trimesh.repair.fill_holes(m)
+          assert m.is_watertight and m.is_winding_consistent
+          m.export('/tmp/figure-source/corrected_manifold_150mm.stl')
+          print('PASS repaired and correctly oriented full figurine:',len(m.faces),'faces')
+          PY
+      - name: Install actual Blender for free local slicing
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y blender
+      - name: Split and add two 3mm alignment pins (no paid service)
+        run: |
+          python -m tflex_figurines.splitter \
+            /tmp/figure-source/corrected_manifold_150mm.stl \
+            --output-dir /tmp/figure-parts \
+            --cut-ratio 0.44 \
+            --pin-diameter-mm 3.0 \
+            --clearance-mm 0.20 \
+            --hole-depth-mm 5.5
+      - name: Save print-part outputs and independent QA
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: winged-character-free-FDM-two-parts
+          path: |
+            /tmp/figure-source/corrected_manifold_150mm.stl
+            /tmp/figure-parts/
+          if-no-files-found: warn
+          retention-days: 7
