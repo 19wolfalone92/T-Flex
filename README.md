@@ -111,6 +111,23 @@ tflex-split builds/prepared-120/exports/model.stl --output-dir builds/split-120 
 
 Для интеграции без нативного T-FLEX Open API воспользуйтесь в CAD 18 командой **Настройка → Команды пользователя → Внешнее приложение** и укажите `scripts/windows/tflex18_prepare.cmd`. Она запустит генерацию STL на вашем компьютере через установленные Python и Blender (которых нет на стороне GitHub). [Подробная инструкция](docs/MONO_PRINT_TFLEX18.md).
 
+## Разноцветная статуэтка на одноэкструдерном принтере
+
+**Предпочтительнее делить фигурку по смысловым деталям, а не горизонтально через лицо/одежду.** Hi3D предлагает отдельную платную функцию `Split-to-Print`: 2–6 частей и штифтовые (`pin`) либо другие соединения.
+
+```bash
+tflex-hi3d split --mesh models/figurine.glb --kind character --template a --joint pin
+# default DRY RUN, no credits; actual vendor split separately:
+tflex-hi3d split --mesh models/figurine.glb --kind character --template a --joint pin --yes-spend-credits
+tflex-hi3d split-status TASK_ID --wait
+tflex-hi3d split-download TASK_ID --output models/figurine_parts.glb
+tflex-extract-parts models/figurine_parts.glb --height-mm 120 --output-dir builds/figurine_parts
+```
+
+Получаем для каждого замкнутого элемента независимый `print/part_XX.stl` и синхронизированный `assembly/part_XX.stl`. Сами штифты, форма соединения и допуски ещё должны быть проверены на реальном принтере. Не нужно менять принтер на многоцветный: отдельные элементы можно печатать разными катушками по очереди.
+
+**Альтернатива без оплаты Hi3D Split** — локальный `tflex-split`, который делает две части с двумя штифтами в Blender. Оба способа доступны, но ни один пока не сертифицирован реальной печатью.
+
 ## Критические ограничения
 
 - 8K текстуры **не увеличивают** печатную детализацию STL; для печати важна геометрия и разрешение принтера.
