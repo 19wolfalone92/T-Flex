@@ -23,9 +23,12 @@ def run() -> None:
     parser.add_argument("--input", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--resolution", type=int, default=640)
+    parser.add_argument("--samples", type=int, default=16)
     options = parser.parse_args(args)
     if not 128 <= options.resolution <= 2048:
         raise ValueError("resolution must be between 128 and 2048")
+    if not 1 <= options.samples <= 128:
+        raise ValueError("samples must be between 1 and 128")
     path = options.input.resolve()
     if not path.is_file():
         raise ValueError("Input not found")
@@ -73,7 +76,7 @@ def run() -> None:
     scale = max(extent.x, extent.y, extent.z, 1e-6)
     scene = bpy.context.scene
     scene.render.engine = "CYCLES"
-    scene.cycles.samples = 16
+    scene.cycles.samples = options.samples
     scene.render.resolution_x = options.resolution
     scene.render.resolution_y = options.resolution
     scene.render.resolution_percentage = 100
@@ -86,7 +89,8 @@ def run() -> None:
 
     def area_light(name, pos, power):
         lamp = bpy.data.lights.new(name, type="AREA")
-        lamp.energy = power
+        # Compensate the inverse-square falloff for source mesh dimensions in millimeters.
+        lamp.energy = power * scale * scale
         lamp.shape = "DISK"
         lamp.size = scale * 1.5
         light = bpy.data.objects.new(name, lamp)
@@ -115,11 +119,29 @@ def run() -> None:
         scene.render.filepath = str(out / (label + ".png"))
         bpy.ops.render.render(write_still=True)
 
+    # The same camera and lighting, minus texture and normal-map tricks.
+    clay = bpy.data.materials.new("Geometry-only neutral clay")
+    clay.use_nodes = True
+    principled = clay.node_tree.nodes.get("Principled BSDF")
+    if principled is not None:
+        principled.inputs["Base Color"].default_value = (0.68, 0.68, 0.68, 1.0)
+        principled.inputs["Roughness"].default_value = 0.9
+    scene.view_layers[0].material_override = clay
+    for label, direction in viewpoints.items():
+        camera.location = center + Vector(direction) * (scale * 3.0)
+        camera.rotation_euler = (center - camera.location).to_track_quat("-Z", "Y").to_euler()
+        scene.render.filepath = str(out / ("clay_" + label + ".png"))
+        bpy.ops.render.render(write_still=True)
+    scene.view_layers[0].material_override = None
+
     summary = {
         "source": str(path), "mesh_count": len(meshes),
         "world_space_bounds": [list(mini), list(maxi)],
         "geometry": audit,
         "renders": [str(out / (name + ".png")) for name in viewpoints],
+        "clay_renders": [str(out / ("clay_" + name + ".png")) for name in viewpoints],
+        "render_samples": options.samples,
+        "clay_note": "Neutral render suppresses textures and normal maps.",
         "ready_for_print": False,
         "limitations": [
             "Rendering does not verify likeness, watertightness across separate objects, internal intersections or wall thickness",
