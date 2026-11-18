@@ -4,17 +4,17 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 
 
-def make_sheet(folder: Path, target: Path, tile: int = 640) -> None:
+def make_sheet(folder: Path, target: Path, tile: int = 640, prefix: str = "") -> None:
     if not 128 <= tile <= 2048:
         raise ValueError("tile size must be 128..2048")
     labels = ("front", "left", "back", "right")
     output = Image.new("RGB", (tile * 2, (tile + 48) * 2), (238, 238, 238))
     draw = ImageDraw.Draw(output)
     for i, name in enumerate(labels):
-        source = folder / (name + ".png")
+        source = folder / (prefix + name + ".png")
         if not source.is_file():
             raise ValueError(f"Missing Blender render: {source}")
         with Image.open(source) as image:
@@ -35,8 +35,9 @@ def main(argv=None):
     parser.add_argument("render_folder", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--tile", type=int, default=640)
+    parser.add_argument("--prefix", default="", help="e.g. clay_ for geometry-only views")
     args = parser.parse_args(argv)
-    make_sheet(args.render_folder, args.output, args.tile)
+    make_sheet(args.render_folder, args.output, args.tile, args.prefix)
 
 
 if __name__ == "__main__":
