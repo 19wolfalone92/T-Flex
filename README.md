@@ -1,5 +1,7 @@
 # T-Flex Figurine Studio 0.3 — профессиональный 3D-конвейер
 
+> **Quality-first policy (18.11.2026):** no new generator joins production without a same-reference blind test, neutral-clay geometry review and printer/slicer acceptance. Independent 2026 comparisons disagree on the universal winner; **Hi3D v3.0 is a challenger, not another blindly connected plugin**. [Evidence and gates](docs/QUALITY_FIRST_RESEARCH_20261118.md).
+
 **Цель:** художественные фигурки людей, персонажей, животных и статуэтки. Для художественной геометрии доступен Tripo H3.1; для сравнения — Meshy 7.1. Blender помогает проверить модель и визуализировать четыре стороны, T-FLEX CAD получает подготовленные STL/OBJ.
 
 ## Что действительно работает
@@ -104,3 +106,16 @@ tflex-contact-sheet builds/figurine_120/turntable --output builds/figurine_120/t
 Детали: **docs/QUALITY_STUDIO.md**, **docs/TRIPO.md**, **docs/TFLEX_IMPORT.md**, **docs/INTEGRATIONS.md**, **docs/ROADMAP.md**.
 
 Обновления проходят через отдельную feature-ветку и PR после успешного CI.
+
+
+## Native Blender verification (Linux CI, without API charges)
+
+The workflow `.github/workflows/blender-native-smoke.yml` installs **actual Blender** and processes a **synthetic 120-mm OBJ**, then produces eight matching views: textured front/left/back/right and `clay_` front/left/back/right. A grayscale clay pass deliberately removes the illusion of geometric detail painted into textures or normal maps. The workflow validates that rendered PNGs are nonblank and uploads both 2x2 contact sheets.
+
+For a local figurine, generate geometry-only contact sheets with:
+
+```bash
+tflex-contact-sheet /path/to/blender/review --output clay_grid.png --prefix clay_
+```
+
+A successful native Blender CI proves only that the scripted Blender build can load and render **our synthetic test geometry**, not that your actual 3D sculpture is faithful or printable. Real AI-model and T-FLEX Windows import remain separate acceptance gates. Input images under 256px, invalid PNG/JPEG/WebP payloads, and corrupt uploads are rejected before credit-consuming API submission.

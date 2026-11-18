@@ -3,6 +3,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
+from PIL import Image
 from tflex_figurines.tripo import TripoClient, TripoError, valid_download_url
 from tflex_figurines.tripo_cli import main
 
@@ -38,7 +39,7 @@ def test_text_generation_contract():
 
 def test_image_upload_contract(tmp_path):
     image = tmp_path / "ref.png"
-    image.write_bytes(b"\x89PNG\r\n\x1a\nfile")
+    Image.new("RGB", (320, 320), (120, 140, 170)).save(image)
     c, s = new_client()
     s.request.side_effect = [answer({"file_token": "file_test"}), answer({"task_id": "task123"})]
     assert c.image_to_model(image) == "task123"

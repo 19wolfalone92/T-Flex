@@ -1,0 +1,89 @@
+name: Blender native smoke — 8 matched geometry/texture views
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "research/quality-first-blender-smoke-*"
+    paths:
+      - ".github/workflows/blender-native-smoke.yml"
+      - "scripts/blender_review.py"
+      - "src/tflex_figurines/contact_sheet.py"
+  pull_request:
+    paths:
+      - ".github/workflows/blender-native-smoke.yml"
+      - "scripts/blender_review.py"
+      - "src/tflex_figurines/contact_sheet.py"
+
+permissions:
+  contents: read
+
+jobs:
+  real-blender-render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Blender (real native binary)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y blender
+          blender --version | head -2
+      - name: Install QA dependencies
+        run: python -m pip install -e ".[dev]"
+      - name: Generate public synthetic geometry fixture (never a user photo)
+        run: |
+          mkdir -p /tmp/tflex-blender-smoke
+          python - <<'PY'
+          import trimesh
+          mesh = trimesh.creation.icosphere(subdivisions=3)
+          mesh.apply_scale(60.0)
+          mesh.export('/tmp/tflex-blender-smoke/sphere-120mm.obj')
+          PY
+      - name: Run actual Blender headless Cycles render
+        run: |
+          blender -b --threads 2 --python scripts/blender_review.py -- \
+            --input /tmp/tflex-blender-smoke/sphere-120mm.obj \
+            --output-dir /tmp/tflex-blender-smoke/review \
+            --resolution 256 --samples 2
+      - name: Validate image evidence and create twin comparison sheets
+        run: |
+          tflex-contact-sheet /tmp/tflex-blender-smoke/review \
+            --output /tmp/tflex-blender-smoke/review/textured_contact.png --tile 256
+          tflex-contact-sheet /tmp/tflex-blender-smoke/review \
+            --output /tmp/tflex-blender-smoke/review/clay_contact.png --tile 256 --prefix clay_
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import numpy as np
+          from PIL import Image
+
+          root = Path('/tmp/tflex-blender-smoke/review')
+          report = json.loads((root / 'blender_review.json').read_text())
+          assert report['mesh_count'] >= 1
+          assert len(report['renders']) == 4
+          assert len(report['clay_renders']) == 4
+          assert all(item['non_manifold_edges'] == 0 for item in report['geometry'])
+          for name in ['front', 'left', 'back', 'right',
+                       'clay_front', 'clay_left', 'clay_back', 'clay_right']:
+              path = root / (name + '.png')
+              assert path.is_file(), f'Missing native render: {path}'
+              with Image.open(path) as img:
+                  assert img.size == (256, 256), img.size
+                  data = np.asarray(img.convert('L'), dtype=np.float32)
+                  assert data.std() > 3, f'Render near-uniform/blank: {name}'
+          for p in ['textured_contact.png', 'clay_contact.png']:
+              assert (root / p).is_file()
+          print('PASS: Blender imported OBJ, generated eight nonblank renders, audited geometry and built both contact sheets.')
+          PY
+      - name: Preserve evidence for human review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: blender-native-smoke-qa
+          path: /tmp/tflex-blender-smoke/review/
+          if-no-files-found: warn
+          retention-days: 7

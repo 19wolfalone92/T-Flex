@@ -25,12 +25,10 @@ MAX_OUTPUT = 150 * 1024 * 1024
 
 
 def image_data_uri(path: Path) -> str:
-    mime = MIMES.get(path.suffix.lower())
-    if not mime or not path.is_file():
-        raise ValueError("Image must be a local PNG/JPEG/WebP file")
-    size = path.stat().st_size
-    if not 0 < size <= MAX_IMAGE:
-        raise ValueError("Meshy images must be 1 byte to 20 MB")
+    from .source_images import validate_generation_image
+    mime = validate_generation_image(
+        path, max_bytes=MAX_IMAGE, allow_webp=True
+    )
     data = base64.b64encode(path.read_bytes()).decode("ascii")
     return f"data:{mime};base64,{data}"
 
@@ -93,10 +91,9 @@ class MeshyClient:
 
     def submit(self, paths: list[Path], mode: str = "sculpt") -> tuple[str, str]:
         # Validate every source BEFORE any expensive request.
+        from .source_images import validate_generation_image
         for path in paths:
-            mime = MIMES.get(path.suffix.lower())
-            if not mime or not path.is_file() or not 0 < path.stat().st_size <= MAX_IMAGE:
-                raise ValueError("Meshy images must be local PNG/JPEG/WebP files <= 20 MB")
+            validate_generation_image(path, max_bytes=MAX_IMAGE, allow_webp=True)
         sources = [image_data_uri(path) for path in paths]
         endpoint, payload = build_payload(sources, mode=mode)
         # Do not retry POST if the response is lost.
