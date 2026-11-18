@@ -5,7 +5,8 @@ param(
     [double] $HeightMM = 120,
     [double] $CutRatio = 0.50,
     [double] $PinMM = 3.0,
-    [double] $ClearanceMM = 0.20
+    [double] $ClearanceMM = 0.20,
+    [string] $UpAxis = ""
 )
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
@@ -47,8 +48,13 @@ $height = $HeightMM.ToString([System.Globalization.CultureInfo]::InvariantCultur
 $ratio = $CutRatio.ToString([System.Globalization.CultureInfo]::InvariantCulture)
 $pin = $PinMM.ToString([System.Globalization.CultureInfo]::InvariantCulture)
 $clearance = $ClearanceMM.ToString([System.Globalization.CultureInfo]::InvariantCulture)
-Write-Host "Preflight source geometry and orient it (height $height mm)..."
-& $py.Source -3 -m tflex_figurines.pipeline "$InputModel" --height-mm "$height" --up-axis y --output-dir "$ready"
+if ([string]::IsNullOrWhiteSpace($UpAxis)) {
+    $ext = [System.IO.Path]::GetExtension($InputModel).ToLowerInvariant()
+    $UpAxis = if ($ext -in @(".glb", ".gltf")) { "y" } else { "z" }
+}
+if ($UpAxis -notin @("x", "y", "z")) { throw "UpAxis must be x/y/z" }
+Write-Host "Preflight source geometry and orient it (height $height mm, axis $UpAxis)..."
+& $py.Source -3 -m tflex_figurines.pipeline "$InputModel" --height-mm "$height" --up-axis "$UpAxis" --output-dir "$ready"
 if ($LASTEXITCODE -ne 0) { throw "Geometry preflight failed; inspect $ready before print splitting" }
 $prepared = Join-Path (Join-Path $ready 'exports') "$base.stl"
 if (-not (Test-Path -LiteralPath $prepared)) { throw 'Prepared STL not produced' }
