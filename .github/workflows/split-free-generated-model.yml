@@ -43,13 +43,14 @@ jobs:
           sudo apt-get install -y blender
       - name: Split and add two 3mm alignment pins (no paid service)
         run: |
-          python -m tflex_figurines.splitter \
-            /tmp/figure-source/corrected_manifold_150mm.stl \
+          blender -b --python scripts/blender_split_assembly.py -- \
+            --input /tmp/figure-source/corrected_manifold_150mm.stl \
             --output-dir /tmp/figure-parts \
             --cut-ratio 0.44 \
             --pin-diameter-mm 3.0 \
-            --clearance-mm 0.20 \
-            --hole-depth-mm 5.5
+            --radial-clearance-mm 0.20 \
+            --hole-depth-mm 5.5 | tee /tmp/figure-source/blender_debug.log
+          test -s /tmp/figure-parts/assembly.json
       - name: Save print-part outputs and independent QA
         if: always()
         uses: actions/upload-artifact@v4
