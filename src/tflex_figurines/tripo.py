@@ -29,12 +29,10 @@ def valid_id(value: str) -> str:
 
 
 def image_mime(path: Path) -> str:
-    mime = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg"}.get(path.suffix.lower())
-    if not mime or not path.is_file():
-        raise ValueError("Image must be an existing PNG or JPEG")
-    if not 0 < path.stat().st_size <= MAX_IMAGE_BYTES:
-        raise ValueError("Image must be 1 byte to 20 MiB")
-    return mime
+    from .source_images import validate_generation_image
+    return validate_generation_image(
+        path, max_bytes=MAX_IMAGE_BYTES, allow_webp=False
+    )
 
 
 def valid_download_url(url: str) -> str:
