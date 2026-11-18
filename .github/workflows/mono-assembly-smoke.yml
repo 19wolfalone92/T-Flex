@@ -38,6 +38,16 @@ jobs:
           import trimesh
           shape = trimesh.creation.cylinder(radius=23, height=120, sections=96)
           shape.export('/tmp/tflex-fdm/cylinder_120mm.stl')
+          # Noncylindrical, organic-ish statuette silhouette with changing radius:
+          # more realistic Blender boolean stress than a perfect cylinder.
+          profile = [
+              (0,-60),(24,-60),(24,-56),(18,-51),(18,-31),
+              (21,-15),(20,0),(13,14),(12,25),(14,37),
+              (20,49),(15,53),(0,60),
+          ]
+          pawn = trimesh.creation.revolve(profile, sections=96)
+          assert pawn.is_watertight and pawn.volume > 0
+          pawn.export('/tmp/tflex-fdm/figurine-shaped-120mm.stl')
           PY
       - name: Split 120 mm solid using real Blender boolean operators
         run: |
@@ -48,6 +58,32 @@ jobs:
             --pin-diameter-mm 3.0 \
             --radial-clearance-mm 0.20 \
             --hole-depth-mm 5.5
+      - name: Split noncylindrical sculpt silhouette with the same parameters
+        run: |
+          blender -b --python scripts/blender_split_assembly.py -- \
+            --input /tmp/tflex-fdm/figurine-shaped-120mm.stl \
+            --output-dir /tmp/tflex-fdm/figurine-pieces \
+            --cut-ratio 0.5 \
+            --pin-diameter-mm 3.0 \
+            --radial-clearance-mm 0.20 \
+            --hole-depth-mm 5.5
+      - name: Verify organic-like second trial exports (independent trimesh)
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import trimesh, json
+          root = Path('/tmp/tflex-fdm/figurine-pieces')
+          manifest = json.loads((root/'assembly.json').read_text())
+          assert len(manifest['dowels_xy_mm']) == 2
+          for kind in ('assembly', 'print'):
+              files = sorted((root/kind).glob('*.stl'))
+              assert len(files) >= 4
+              for f in files:
+                  m = trimesh.load_mesh(str(f), force='mesh')
+                  assert m.is_watertight, f'{f} open'
+                  assert m.volume > 0, f'{f} nonpositive volume'
+          print('PASS: noncylindrical statuette silhouette, split and two-pin FDM assembly.')
+          PY
       - name: Verify EVERY exported STL in independent geometry library
         run: |
           python - <<'PY'
@@ -81,7 +117,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mono-fdm-real-blender-proof
-          path: /tmp/tflex-fdm/result/
+          path: |
+            /tmp/tflex-fdm/result/
+            /tmp/tflex-fdm/figurine-pieces/
           if-no-files-found: warn
           retention-days: 7
 
