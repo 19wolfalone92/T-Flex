@@ -20,7 +20,7 @@ jobs:
         run: |
           python - <<'PY'
           from gradio_client import Client
-          for name in ('stabilityai/TripoSR','JeffreyXiang/TRELLIS','microsoft/TRELLIS.2-4B'):
+          for name in ('microsoft/TRELLIS.2','trellis-community/TRELLIS','Stable-X/Hi3DGen','TencentARC/Pixal3D','stabilityai/stable-fast-3d'):
               try:
                   print('\n===SPACE',name, '===',flush=True)
                   client=Client(name, verbose=False)
