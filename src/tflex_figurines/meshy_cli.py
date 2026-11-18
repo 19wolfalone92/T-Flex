@@ -6,7 +6,7 @@ import json
 import sys
 from pathlib import Path
 
-from .meshy_quality import MIMES, MAX_IMAGE, MeshyClient, build_payload
+from .meshy_quality import MAX_IMAGE, MeshyClient, build_payload
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -28,11 +28,11 @@ def main(argv: list[str] | None = None) -> int:
         if opts.command == "submit":
             if not 1 <= len(opts.images) <= 4:
                 raise ValueError("Meshy accepts 1 to 4 views")
+            from .source_images import validate_generation_image
             for path in opts.images:
-                if path.suffix.lower() not in MIMES or not path.is_file():
-                    raise ValueError("Images must exist and be PNG/JPEG/WebP")
-                if not 0 < path.stat().st_size <= MAX_IMAGE:
-                    raise ValueError("Image must be 1 byte to 20 MB")
+                validate_generation_image(
+                    path, max_bytes=MAX_IMAGE, allow_webp=True
+                )
             endpoint, payload = build_payload(["private_input"] * len(opts.images), mode=opts.mode)
             if not opts.yes_spend_credits:
                 result = {
