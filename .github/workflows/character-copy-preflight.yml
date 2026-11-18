@@ -1,0 +1,48 @@
+name: Winged figurine copy — input and balance PRECHECK (NO SPENDING)
+on:
+  push:
+    branches:
+      - experiment/recreate-winged-character-20261118
+    paths:
+      - .github/workflows/character-copy-preflight.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  readiness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      HI3D_ACCESS_KEY: ${{ secrets.HI3D_ACCESS_KEY }}
+      HI3D_SECRET_KEY: ${{ secrets.HI3D_SECRET_KEY }}
+      REFERENCE_URL: 'https://assets.meshy.ai/efb00ba8-043f-4ff5-829b-84a69a233d37/uploads/0_01a1ed78-d307-731f-99e4-04dc78479958.png?Expires=1795132800&Signature=I3sj6d~HsbYgBRkqOo3h4nbcFpCB~jEISWQf9m1IjguJaUnXE-u1nlKZW~nXObNVsxw-J6Ie~d1agJN0D-p0kd7ASLmmPjeF5mMAfx~DFDFGnWOBUyuh1MnxmWbyr-zUkwIuH-akLy97q80WQhXMBuiSf0o-yvRjpsvwrwDAtwjpQoCsJVADQ8hrW5i6Hg8X4EsejqixLQJbssHB4fusNxmpnrp1D86F3zKRqdJIOFI2cGr9bRN6tjJ1YH7WJVwlUU7fDCwr3GnQy4weC~0u~O8~sFCJXeOH6g0rf0itTO5wQzvQXIunZHHcHGm00rX~WF-2UYAzfGT0-4WeXdp8fQ__&Key-Pair-Id=K1VGYTHIYLM9UM'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -e .
+      - name: Verify input and read available credits only
+        run: |
+          python - <<'PY'
+          import os
+          import io
+          import requests
+          from PIL import Image
+          from tflex_figurines.hi3d import Hi3DClient
+          budget = Hi3DClient().balance()
+          available = float(budget.get("totalBalance", -1))
+          print(f"HI3D_CREDITS_AVAILABLE={available:.2f}")
+          print(f"HI3D_QUALITY_REQUIRED=90")
+          print(f"HI3D_MASTER_REQUIRED=440")
+          print(f"HI3D_QUALITY_AFFORDABLE={available >= 90}")
+          response = requests.get(os.environ["REFERENCE_URL"], timeout=40)
+          response.raise_for_status()
+          if len(response.content)>20_000_000: raise ValueError("Input too large")
+          with Image.open(io.BytesIO(response.content)) as im:
+              im.verify()
+          with Image.open(io.BytesIO(response.content)) as im:
+              print(f"REFERENCE_IMAGE={im.width}x{im.height} {im.format}")
+              assert im.width >= 256 and im.height >= 256
+          print("NO GENERATION SUBMITTED; NO CREDITS SPENT")
+          PY
