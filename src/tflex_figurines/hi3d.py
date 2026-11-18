@@ -62,7 +62,9 @@ class Hi3DClient:
         else:
             if not self._bearer:
                 self.authenticate()
-            headers["Authorization"] = "Bearer " + self._bearer
+            # Vendor docs use "Token" for split/query-task, "Bearer" otherwise.
+            scheme = "Token" if path == "/split/query-task" else "Bearer"
+            headers["Authorization"] = scheme + " " + self._bearer
         try:
             res = self.session.request(
                 method, ROOT + path, headers=headers, timeout=30,
@@ -141,6 +143,77 @@ class Hi3DClient:
             raise Hi3DError("Hi3D did not return a valid task ID")
         return task_id
 
+    def submit_split(
+        self,
+        mesh: Path,
+        *,
+        kind: str = "character",
+        template: str = "a",
+        joint: str = "pin",
+        merge: bool = True,
+        level: str = "medium",
+    ) -> str:
+        """Submit vendor's billable 3D split-to-print task (2..6 parts).
+
+        Character templates a/b/c/d/e/f: 6/5/4/4/3/2 parts.
+        This can preserve semantic part boundaries unlike a planar cut.
+        """
+        if kind not in ("character", "general"):
+            raise ValueError("Split mode must be character or general")
+        if kind == "character":
+            if template not in ("a", "b", "c", "d", "e", "f"):
+                raise ValueError("Character split template must be a..f")
+            if joint not in ("none", "ball", "dovetail", "pin"):
+                raise ValueError("Invalid connector")
+        elif level not in ("low", "medium", "high"):
+            raise ValueError("General split level must be low/medium/high")
+        ext = mesh.suffix.lower()
+        if ext not in (".glb", ".stl", ".obj") or not mesh.is_file():
+            raise ValueError("Existing GLB/STL/OBJ required for vendor split")
+        if not 0 < mesh.stat().st_size <= 200_000_000:
+            raise ValueError("Vendor split source must be 1 byte..200 MB")
+        mime = {".glb": "model/gltf-binary", ".stl": "model/stl", ".obj": "text/plain"}[ext]
+        payload = {"model": kind, "format": "2"}
+        if kind == "character":
+            payload.update({"part": template, "joint": joint})
+            if joint != "none":
+                payload["merge"] = "yes" if merge else "no"
+        else:
+            payload["level"] = level
+        # Never repeat an uncertain POST: duplicate paid tasks are possible.
+        with mesh.open("rb") as handle:
+            result = self._call(
+                "POST", "/split/create-task",
+                data=payload, files={"mesh": (mesh.name, handle, mime)}
+            )
+        task_id = result.get("task_id")
+        if not isinstance(task_id, str) or not TASK_ID.fullmatch(task_id):
+            raise Hi3DError("Hi3D split request returned invalid task ID")
+        return task_id
+
+    def split_task(self, task_id: str) -> dict:
+        if not isinstance(task_id, str) or not TASK_ID.fullmatch(task_id):
+            raise ValueError("Invalid split task ID")
+        return self._call("GET", "/split/query-task", params={"task_id": task_id})
+
+    def wait_split(self, task_id: str, timeout: float = 1800, interval: float = 10) -> dict:
+        if timeout <= 0 or interval <= 0:
+            raise ValueError("Timeout and interval must be positive")
+        deadline = time.monotonic() + timeout
+        while True:
+            data = self.split_task(task_id)
+            state = data.get("state")
+            if state == "success":
+                return data
+            if state in FINISHED_ERROR:
+                raise Hi3DError(f"Hi3D split task ended {state}")
+            if time.monotonic() >= deadline:
+                raise Hi3DError("Split wait expired; use existing task ID, never re-submit")
+            time.sleep(min(interval, max(0.01, deadline-time.monotonic())))
+
+    def download_split(self, task_id: str, dest: Path) -> Path:
+        return self._download_result(self.split_task(task_id), dest)
+
     def task(self, task_id: str) -> dict:
         if not isinstance(task_id, str) or not TASK_ID.fullmatch(task_id):
             raise ValueError("Invalid Hi3D task ID")
@@ -162,7 +235,9 @@ class Hi3DClient:
             time.sleep(min(interval, max(0.01, deadline - time.monotonic())))
 
     def download(self, task_id: str, dest: Path) -> Path:
-        result = self.task(task_id)
+        return self._download_result(self.task(task_id), dest)
+
+    def _download_result(self, result: dict, dest: Path) -> Path:
         if result.get("state") != "success":
             raise Hi3DError("Hi3D task is not finished")
         url = result.get("url")
