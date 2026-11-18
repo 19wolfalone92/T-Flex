@@ -1,6 +1,6 @@
-# T-Flex Figurine Studio 0.3 — профессиональный 3D-конвейер
+# T-Flex Figurine Studio 0.4 — Hi3D 3.0 / монохромная печать / T-FLEX CAD 18
 
-> **Quality-first policy (18.11.2026):** no new generator joins production without a same-reference blind test, neutral-clay geometry review and printer/slicer acceptance. Independent 2026 comparisons disagree on the universal winner; **Hi3D v3.0 is a challenger, not another blindly connected plugin**. [Evidence and gates](docs/QUALITY_FIRST_RESEARCH_20261118.md).
+> **Quality-first policy (18.11.2026):** no new generator joins production without a same-reference blind test, neutral-clay geometry review and printer/slicer acceptance. Independent 2026 comparisons disagree on the universal winner; **Hi3D v3.0 is an optional third, credit-guarded candidate, not a guarantee of model quality**. [Evidence and gates](docs/QUALITY_FIRST_RESEARCH_20261118.md).
 
 **Цель:** художественные фигурки людей, персонажей, животных и статуэтки. Для художественной геометрии доступен Tripo H3.1; для сравнения — Meshy 7.1. Blender помогает проверить модель и визуализировать четыре стороны, T-FLEX CAD получает подготовленные STL/OBJ.
 
@@ -11,6 +11,9 @@
 | Tripo API v3, ключ через GitHub Secret `TRIPO_AL` | ✅ Авторизация проверена через Actions |
 | Tripo H3.1 high-detail, multiview, цветные/составные варианты | ✅ Код + offline тесты; платную генерацию не запускали |
 | Meshy 7.1 Ultra single 4K / multiview 2K | ✅ Опциональный API-адаптер; GitHub требует отдельный MESHY_API_KEY; Meshy ChatGPT-плагин подключён независимо |
+| Hi3D v3.0 (AK/SK) | ✅ Клиент официального API / 2048quality и 2048master / реальная авторизация проверяется отдельно read-only workflow |
+| 1-цветная печать по частям | ✅ Скрипт Blender: две половины, 2 штифта, посадочные отверстия, калибровочная деталь, STL для печати и CAD |
+| T-FLEX CAD 18 | ✅ Windows-подключение как внешняя пользовательская команда; это **не нативная CAD DLL**, нужен реальный Windows CAD для приёмки |
 | Проверка фотографий и их согласованности | ✅ Измеримая диагностика, а не биометрическая проверка идентичности |
 | Проверка STL/GLB/OBJ и масштабирование в мм | ✅ Python / тесты |
 | Единый безопасный конвейер подготовки | ✅ QA → STL/OBJ → диагностический manifest |
@@ -94,6 +97,20 @@ tflex-contact-sheet builds/figurine_120/turntable --output builds/figurine_120/t
 
 Запускайте для каждого нового результата в **новой папке**, чтобы сохранить прежние отчёты.
 
+
+## Hi3D 3.0 + разделение под одноцветный 3D-принтер
+
+```bash
+tflex-hi3d submit --front private/front.png --profile quality
+# default dry run; actual generation only after explicit --yes-spend-credits
+tflex-pipeline models/model.glb --height-mm 120 --up-axis y --output-dir builds/prepared-120
+tflex-split builds/prepared-120/exports/model.stl --output-dir builds/split-120 --cut-ratio 0.50 --clearance-mm 0.20
+```
+
+**Подготовка состоит из реальных раздельных STL:** нижняя и верхняя половины, 2 отдельных соединительных штифта, пробная деталь для проверки зазора; `assembly/*.stl` содержат исходные координаты для установки в T-FLEX CAD 18. Программная топология не гарантирует пригодности к физической печати: требуется слайсер и тестовая посадка. Геометрический разрез пока **один плоский**, не автоматическое отделение головы, рук и волос.
+
+Для интеграции без нативного T-FLEX Open API воспользуйтесь в CAD 18 командой **Настройка → Команды пользователя → Внешнее приложение** и укажите `scripts/windows/tflex18_prepare.cmd`. Она запустит генерацию STL на вашем компьютере через установленные Python и Blender (которых нет на стороне GitHub). [Подробная инструкция](docs/MONO_PRINT_TFLEX18.md).
+
 ## Критические ограничения
 
 - 8K текстуры **не увеличивают** печатную детализацию STL; для печати важна геометрия и разрешение принтера.
@@ -103,7 +120,7 @@ tflex-contact-sheet builds/figurine_120/turntable --output builds/figurine_120/t
 - Полигональная сетка STL/OBJ **не является** параметрической моделью T-FLEX.
 - API-ключи и личные фото не помещать в публичный git. `models/`, `exports/`, `reports/`, `builds/`, `private/` исключены через .gitignore.
 
-Детали: **docs/QUALITY_STUDIO.md**, **docs/TRIPO.md**, **docs/TFLEX_IMPORT.md**, **docs/INTEGRATIONS.md**, **docs/ROADMAP.md**.
+Монохромная печать, Hi3D, сборка и подключение CAD 18: **docs/MONO_PRINT_TFLEX18.md**. Детали: **docs/QUALITY_STUDIO.md**, **docs/TRIPO.md**, **docs/TFLEX_IMPORT.md**, **docs/INTEGRATIONS.md**, **docs/ROADMAP.md**.
 
 Обновления проходят через отдельную feature-ветку и PR после успешного CI.
 
