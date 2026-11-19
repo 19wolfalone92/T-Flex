@@ -91,7 +91,12 @@ def produce(folder,out,seed=20261120,model="mv"):
         preview=out/("V9_200MM_"+model.upper()+"_SCALE_AND_ORIENTATION_PROVISIONAL.glb")
         upright.export(preview)
         status={
-            "model":model_path,"variant":model,"seed":seed,\n            "runtime_seconds":runtime,"peak_cuda_allocated_gib":peak,\n            "inference_uses_model_cpu_offload":True,\n            "200mm_preview_sha256":hashlib.sha256(preview.read_bytes()).hexdigest(),\n            "200mm_preview_height_mm":round(float(upright.extents[2]),5),\n            "200mm_preview_up_direction_verified_against_original":False,
+            "model":model_path,"variant":model,"seed":seed,
+            "runtime_seconds":runtime,"peak_cuda_allocated_gib":peak,
+            "inference_uses_model_cpu_offload":True,
+            "200mm_preview_sha256":hashlib.sha256(preview.read_bytes()).hexdigest(),
+            "200mm_preview_height_mm":round(float(upright.extents[2]),5),
+            "200mm_preview_up_direction_verified_against_original":False,
             "view_count_inference":3 if model=="mv" else 1,
             "other_original_images_for_independent_qa":True,
             "real_faces":len(mesh.faces),"watertight":bool(mesh.is_watertight),
