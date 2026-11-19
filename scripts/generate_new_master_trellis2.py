@@ -38,7 +38,7 @@ with Image.open(ref) as im:
         raise ValueError("Reference resolution too low")
     print("SOURCE_DIMENSIONS", im.size, "SHA256", hashlib.sha256(resp.content).hexdigest(), flush=True)
 
-client = Client("microsoft/TRELLIS.2", verbose=False)
+client = Client("microsoft/TRELLIS.2", hf_token=os.environ.get("HF_TOKEN") or None, verbose=False)
 print("START_TRELLIS2_PREPROCESS", flush=True)
 prepped = client.predict(handle_file(str(ref)), api_name="/preprocess_image")
 print("PREPPED_TYPE", type(prepped).__name__, flush=True)
