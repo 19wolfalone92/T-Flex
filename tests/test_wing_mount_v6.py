@@ -4,6 +4,10 @@ from dataclasses import replace
 import pytest
 import trimesh
 
+# Main Python-only matrix excludes heavy CAD wheels; the dedicated V6 workflow
+# installs CadQuery/OCP and runs all engineering checks on Python 3.11.
+pytest.importorskip('cadquery')
+
 from tflex_figurines.wing_mount_v6 import WingMountConfig, make_mount, export_fixture
 
 
