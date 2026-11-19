@@ -3,7 +3,7 @@ Official Tencent Hunyuan3D-2mv: requires CUDA, model weights, 3 REAL alpha views
 and an independently reviewed result. Original photos NEVER enter public repo.
 """
 from pathlib import Path
-import argparse, hashlib, json, os, gc
+import argparse, hashlib, json, os, gc, time
 import numpy as np
 from PIL import Image
 
@@ -37,17 +37,28 @@ def produce(folder,out,seed=20261120,model="mv"):
     import torch
     if not torch.cuda.is_available():raise RuntimeError("No GPU; refusing fake reconstruction")
     from hy3dgen.shapegen import Hunyuan3DDiTFlowMatchingPipeline
-    if model=="mv":
-        model_path="tencent/Hunyuan3D-2mv"; subfolder="hunyuan3d-dit-v2-mv"
+    if model in ("mv","mv_turbo"):
+        model_path="tencent/Hunyuan3D-2mv"; subfolder=("hunyuan3d-dit-v2-mv-turbo" if model=="mv_turbo" else "hunyuan3d-dit-v2-mv")
         inp={key:images[key] for key in ("front","left","back")}
-        steps=38
+        steps=5 if model=="mv_turbo" else 38
     elif model=="mini":
         model_path="tencent/Hunyuan3D-2mini";subfolder="hunyuan3d-dit-v2-mini"
         inp=images["front"];steps=50
     else:raise ValueError(model)
     pipeline=Hunyuan3DDiTFlowMatchingPipeline.from_pretrained(
         model_path,subfolder=subfolder,variant="fp16")
+    # CPU-offload keeps the full multiview model from residing on a single 16 GiB T4.
+    # Two Tesla T4 cards do NOT share one 32 GiB memory pool.
+    if hasattr(pipeline,"enable_model_cpu_offload"):
+        pipeline.enable_model_cpu_offload()
+    else:
+        raise RuntimeError("Required upstream T4 CPU-offload interface unavailable")
+    if model=="mv_turbo":
+        if not hasattr(pipeline,"enable_flashvdm"):
+            raise RuntimeError("Turbo model requires FlashVDM; no fake speed fallback")
+        pipeline.enable_flashvdm()
     torch.cuda.reset_peak_memory_stats()
+    t0=time.monotonic()
     try:
         result=pipeline(image=inp,num_inference_steps=steps,octree_resolution=256,
                         num_chunks=8000,generator=torch.manual_seed(seed),output_type="trimesh")
@@ -55,11 +66,32 @@ def produce(folder,out,seed=20261120,model="mv"):
             raise ValueError("AI did not generate a valid real 3D mesh")
         mesh=result[0]
         if not np.isfinite(mesh.vertices).all():raise ValueError("Non-finite mesh")
+        if len(mesh.vertices)<1000 or mesh.is_empty:raise ValueError("3D shape empty")
+        runtime=round(time.monotonic()-t0,2)
+        peak=round(torch.cuda.max_memory_allocated()/2**30,2)
         out.mkdir(parents=True,exist_ok=True)
         f=out/("V9_REAL_HUNYUAN_"+model.upper()+"_UNAPPROVED.glb")
         mesh.export(f)
+        # Engineering-scale preview only: principal axis alignment is provisional.
+        # Store BOTH untouched original mesh and 200 mm normalized illustration.
+        upright=mesh.copy()
+        longest=int(np.argmax(upright.extents))
+        if longest==0:
+            upright.apply_transform([[0,0,-1,0],[0,1,0,0],[1,0,0,0],[0,0,0,1]])
+        elif longest==1:
+            upright.apply_transform([[1,0,0,0],[0,0,-1,0],[0,1,0,0],[0,0,0,1]])
+        if upright.extents[2] <= 0:
+            raise RuntimeError("Cannot normalize mesh to 200 mm")
+        upright.apply_scale(200.0/float(upright.extents[2]))
+        upright.apply_translation([-float(upright.bounds[0,0]+upright.bounds[1,0])/2,
+                                   -float(upright.bounds[0,1]+upright.bounds[1,1])/2,
+                                   -float(upright.bounds[0,2])])
+        if not 199.999 <= upright.extents[2] <= 200.001:
+            raise AssertionError("Physical 200 mm provisional scale lost")
+        preview=out/("V9_200MM_"+model.upper()+"_SCALE_AND_ORIENTATION_PROVISIONAL.glb")
+        upright.export(preview)
         status={
-            "model":model_path,"variant":model,"seed":seed,
+            "model":model_path,"variant":model,"seed":seed,\n            "runtime_seconds":runtime,"peak_cuda_allocated_gib":peak,\n            "inference_uses_model_cpu_offload":True,\n            "200mm_preview_sha256":hashlib.sha256(preview.read_bytes()).hexdigest(),\n            "200mm_preview_height_mm":round(float(upright.extents[2]),5),\n            "200mm_preview_up_direction_verified_against_original":False,
             "view_count_inference":3 if model=="mv" else 1,
             "other_original_images_for_independent_qa":True,
             "real_faces":len(mesh.faces),"watertight":bool(mesh.is_watertight),
@@ -84,7 +116,7 @@ def main():
     p.add_argument("--private-reference-dir",type=Path,required=True)
     p.add_argument("--output",type=Path,default=Path("/kaggle/working/v9_raw"))
     p.add_argument("--seed",type=int,default=20261120)
-    p.add_argument("--model",choices=("mv","mini"),default="mv")
+    p.add_argument("--model",choices=("mv","mv_turbo","mini"),default="mv")
     p.add_argument("--preflight-only",action="store_true")
     a=p.parse_args()
     validate_refs(a.private_reference_dir)
