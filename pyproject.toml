@@ -16,7 +16,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8,<10"]
+sculpt = ["scikit-image>=0.23,<1"]
+dev = ["pytest>=8,<10", "scikit-image>=0.23,<1"]
 
 [project.scripts]
 tflex-figurines = "tflex_figurines.cli:main"

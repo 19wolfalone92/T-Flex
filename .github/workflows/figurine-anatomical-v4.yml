@@ -1,0 +1,148 @@
+name: Winged Figurine V4 — actual fingers / FDM STL and T-FLEX STEP
+
+on:
+  push:
+    branches:
+      - "feature/v4-anatomical-hands-and-artifact-qa-20261119"
+      - main
+    paths:
+      - ".github/workflows/figurine-anatomical-v4.yml"
+      - "scripts/rebuild_v4_from_v3_zip.py"
+      - "scripts/preview_v4_reconstructed_geometry.py"
+      - "src/tflex_figurines/anatomical_hands.py"
+  pull_request:
+    paths:
+      - ".github/workflows/figurine-anatomical-v4.yml"
+      - "scripts/rebuild_v4_from_v3_zip.py"
+      - "scripts/preview_v4_reconstructed_geometry.py"
+      - "src/tflex_figurines/anatomical_hands.py"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: winged-figurine-v4-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  actual-model-rebuild:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install real CAD, triangulated geometry and voxel sculpt libraries
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]" 'cadquery>=2.6,<3' 'vtk>=9.4,<10' 'scikit-image>=0.23,<1'
+      - name: Download the earlier verified V3 release as immutable source
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p /tmp/winged-v4/v3
+          gh release download figurine-150mm-colours-v3-20261119 \
+            --repo "${{ github.repository }}" \
+            --pattern "Winged_Character_COLOUR_V3_TFLEX_STL_WITH_REAL_SOCKETS.zip" \
+            --dir /tmp/winged-v4/v3
+      - name: Replace only both placeholder hands; rebuild printable STL and CAD STEP
+        run: |
+          python -u -m scripts.rebuild_v4_from_v3_zip \
+            /tmp/winged-v4/v3/Winged_Character_COLOUR_V3_TFLEX_STL_WITH_REAL_SOCKETS.zip \
+            /tmp/winged-v4/new
+      - name: Install headless OpenGL backend for real VTK rendering
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb libgl1-mesa-dri libgl1 libegl1 libosmesa6
+      - name: Render actual 14-color physical geometry from all sides
+        run: |
+          xvfb-run -a -s '-screen 0 1280x1024x24' python scripts/preview_v4_reconstructed_geometry.py \
+            /tmp/winged-v4/new/kit/STL_ASSEMBLY \
+            /tmp/winged-v4/new/V4_REAL_STL_PREVIEW_5_VIEWS.png
+      - name: Strong independent release acceptance
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json, hashlib, zipfile
+          import trimesh
+          from OCP.STEPControl import STEPControl_Reader
+          from OCP.IFSelect import IFSelect_RetDone
+          from OCP.BRepCheck import BRepCheck_Analyzer
+          target=Path('/tmp/winged-v4/new')
+          kit=target/'kit'
+          data=json.loads((kit/'QA_MANIFEST.json').read_text())
+          assert data['version']=='4.0'
+          assert data['print_ready_certified'] is False
+          assert len(data['parts'])==14 and len(data['joints'])==8
+          assert data['full_sleeves_unchanged_from_v3'] and data['wing_geometry_unchanged_from_v3']
+          for piece in sorted((kit/'STL_ASSEMBLY').glob('*.stl')):
+              obj=trimesh.load_mesh(piece)
+              assert obj.is_watertight and obj.is_winding_consistent and obj.volume>0,piece
+          for part in ['08_LEFT_VISIBLE_HAND_SKIN','09_RIGHT_VISIBLE_HAND_SKIN']:
+              hand=trimesh.load_mesh(kit/'STL_ASSEMBLY'/(part+'.stl'))
+              assert len(hand.faces)>20000
+              assert 12 < hand.extents[2] < 16
+              old=trimesh.load_mesh(kit/'STL_PRINT'/(part+'_on_bed.stl'))
+              assert old.is_watertight and abs(old.bounds[0,2])<.02
+          for name in ('03_LEFT_FULL_SLEEVE_BLACK','04_RIGHT_FULL_SLEEVE_BLACK',
+                       '05_LEFT_FEATHER_WING_BLUE','06_RIGHT_FEATHER_WING_BLUE'):
+              old=trimesh.load_mesh(kit/'STL_ASSEMBLY'/(name+'.stl'))
+              assert len(old.faces)>10000
+          step=kit/'T-FLEX_18_V4_ANATOMICAL_HANDS_STEP_ASSEMBLY.step'
+          reader=STEPControl_Reader()
+          assert reader.ReadFile(str(step))==IFSelect_RetDone and reader.TransferRoots()>0
+          assert BRepCheck_Analyzer(reader.OneShape()).IsValid()
+          assert (target/'V4_REAL_STL_PREVIEW_5_VIEWS.png').stat().st_size>100000
+          assert (target/'SHA256.json').is_file()
+          final=target/'Winged_Character_V4_HighDetail_Hands_STL_STEP.zip'
+          assert final.stat().st_size>20000000
+          with zipfile.ZipFile(final) as z:
+              assert z.testzip() is None
+              assert step.name in z.namelist()
+              assert 'STL_PRINT/03_LEFT_FULL_SLEEVE_BLACK_on_bed.stl' in z.namelist()
+          print('PASS: fourteen actual manifold colour components, both digit-sculpt hands, eight socket joints, cad readback')
+          PY
+      - name: Store inspection preview and full STEP/STL package
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Winged_Figurine_V4_Print_Kit_and_5_View_Inspection
+          path: |
+            /tmp/winged-v4/new/Winged_Character_V4_HighDetail_Hands_STL_STEP.zip
+            /tmp/winged-v4/new/V4_REAL_STL_PREVIEW_5_VIEWS.png
+            /tmp/winged-v4/new/kit/QA_MANIFEST.json
+          retention-days: 30
+          if-no-files-found: warn
+      - name: Publish GitHub Release after proven merge to main
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cat > /tmp/winged-v4/new/RELEASE_NOTES.md <<'EOF'
+          ## V4 anatomical hands, colour STL, tested faceted T-FLEX STEP
+          
+          The prior V3 had two **featureless spherical hands**. V4 replaces both
+          with a smoothly sculpted palm, four differentiated fingers and a
+          separate thumb, while preserving every source sleeve and feather wing.
+          The STEP assembly is **rebuilt and verified**, as is mobile GLB.
+          See attached **actual geometry screenshot** (not AI concept art).
+          
+          The pack contains **14 colour-part STL**, 8 pins and 16 matching blind
+          sockets, separate FDM-bed STL and assembly-aligned STL, fit coupons,
+          individual T-FLEX 18 STEP parts, and one re-import-tested STEP assembly.
+          
+          **Print is not certified.** Finger thickness/wing supports, hand glue
+          fit and real printer tolerances must be tested. Head and black mask
+          are *not yet* accurately segmented by colour: this is still an earlier
+          AI reconstruction rather than the exact game character geometry.
+          EOF
+          gh release create figurine-anatomical-hands-v4-20261119 \
+            "/tmp/winged-v4/new/Winged_Character_V4_HighDetail_Hands_STL_STEP.zip" \
+            "/tmp/winged-v4/new/V4_REAL_STL_PREVIEW_5_VIEWS.png" \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "Winged Figurine V4 — 5-digit hands, colour STL and T-FLEX STEP" \
+            --notes-file /tmp/winged-v4/new/RELEASE_NOTES.md \
+            --latest=false
