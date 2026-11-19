@@ -18,7 +18,7 @@ assert 1000 < len(r.content) < 20_000_000
 img=root/"source_front_reference.png";img.write_bytes(r.content)
 with Image.open(img) as a:a.verify()
 print("START_FREE_HUNYUAN_2MV_MASTER",flush=True)
-api=Client("tencent/Hunyuan3D-2mv",verbose=False)
+api=Client("tencent/Hunyuan3D-2mv",hf_token=os.environ.get("HF_TOKEN") or None,verbose=False)
 # API signature verified from official HF Space by read-only preflight.
 result=api.predict(
     None, None, handle_file(str(img)), None, None, None,
