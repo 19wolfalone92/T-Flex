@@ -12,16 +12,16 @@ OUT=os.environ.get('V6_OUT','/mnt/data/V6_PROCEDURAL_CANDIDATE')
 os.makedirs(OUT,exist_ok=True)
 PARTS=[]
 C={
- 'skin':(0.99,0.78,0.78,1), 'white':(0.86,0.91,1.,1),
- 'hair_shadow':(0.68,0.76,0.89,1),'hair_highlight':(0.98,0.99,1,1),
+ 'skin':(0.99,0.78,0.78,1), 'white':(0.81,0.87,.97,1),
+ 'hair_shadow':(0.73,0.79,0.89,1),'hair_highlight':(0.91,0.94,1,1),
  'black':(0.07,0.08,0.11,1), 'coat':(0.12,0.14,0.18,1),
  'coat_high':(0.18,0.19,0.23,1), 'near_black':(0.045,0.051,0.065,1),
  'metal':(0.67,0.72,0.76,1),'dark_metal':(0.32,0.36,0.40,1),
  'scarlet':(0.94,0.34,0.24,1),'purple':(0.45,0.44,0.74,1),
  'rose_eye':(0.83,0.48,0.61,1), 'ivory':(0.96,0.96,0.99,1),
- 'wing_l':(0.74,0.83,0.96,1), 'wing_l_light':(0.88,0.92,0.99,1),
- 'wing_l_dark':(0.60,0.70,0.85,1), 'wing_r':(0.49,0.63,0.86,1),
- 'wing_r_light':(0.66,0.75,0.91,1), 'wing_r_dark':(0.40,0.53,0.76,1),
+ 'wing_l':(0.65,0.74,0.87,1), 'wing_l_light':(0.79,0.84,0.95,1),
+ 'wing_l_dark':(0.56,0.65,0.79,1), 'wing_r':(0.44,0.57,0.79,1),
+ 'wing_r_light':(0.56,0.68,0.86,1), 'wing_r_dark':(0.33,0.48,0.73,1),
  'blue':(0.06,0.65,0.96,1)
 }
 def add(name, m, color):
@@ -94,6 +94,114 @@ def feather(name,start,end,width,thick,col,curve=0.):
  m=trimesh.Trimesh(vertices=vv,faces=ff,process=True)
  trimesh.repair.fix_normals(m);add(name,m,col)
 
+def sculpted_lock(name, path, widths, depths, col, rings=10, sides=12, normal=(0,-1,0)):
+    """Smooth separate feather/hair leaf as a truly watertight sculptural volume."""
+    pts=np.array(path,dtype=float)
+    def cr(p0,p1,p2,p3,t):
+        return .5*((2*p1)+(-p0+p2)*t+(2*p0-5*p1+4*p2-p3)*t*t+(-p0+3*p1-3*p2+p3)*t*t*t)
+    refined=[];wref=[];dref=[]
+    for i in range(len(pts)-1):
+        for k in range(rings):
+            t=k/rings
+            refined.append(cr(pts[max(0,i-1)],pts[i],pts[i+1],pts[min(len(pts)-1,i+2)],t))
+            wref.append(float(widths[i]*(1-t)+widths[i+1]*t))
+            dref.append(float(depths[i]*(1-t)+depths[i+1]*t))
+    refined.append(pts[-1]);wref.append(max(float(widths[-1]),.10));dref.append(max(float(depths[-1]),.08))
+    vv=[];faces=[]
+    nrm=np.array(normal,dtype=float);nrm/=np.linalg.norm(nrm)
+    for i,p in enumerate(refined):
+        direction=np.array(refined[min(len(refined)-1,i+1)])-np.array(refined[max(0,i-1)])
+        direction/=max(1.e-6,np.linalg.norm(direction))
+        wdir=np.cross(nrm,direction)
+        if np.linalg.norm(wdir)<.1:wdir=np.array([1.,0,0])
+        wdir/=np.linalg.norm(wdir)
+        for j in range(sides):
+            a=math.tau*j/sides
+            vv.append(np.array(p)+wdir*max(.12,wref[i])*math.cos(a)+nrm*max(.10,dref[i])*math.sin(a))
+    for i in range(len(refined)-1):
+        for j in range(sides):
+            n=(j+1)%sides;u=i*sides+j;v=i*sides+n;a=(i+1)*sides+j;b=(i+1)*sides+n
+            faces.extend([[u,a,v],[v,a,b]])
+    for j in range(1,sides-1):
+        faces.append([0,j+1,j]);faces.append([(len(refined)-1)*sides,(len(refined)-1)*sides+j,(len(refined)-1)*sides+j+1])
+    mesh=trimesh.Trimesh(vertices=vv,faces=faces,process=True)
+    trimesh.repair.fix_normals(mesh);add(name,mesh,col)
+
+def fabric_mask(name):
+    """Curved conformal black surgical mask with cheek-high rim and jaw protection."""
+    n=40;m=20;vv=[];ff=[]
+    def at(i,j,back=False):
+        u=-1.+2.*i/n;t=j/m
+        x=16.8*u*(1-.10*t-.12*t*t)
+        top=122.4+4.2*(abs(u)**1.35)
+        bottom=108.9+10.0*(abs(u)**1.7)
+        z=top*(1-t)+bottom*t
+        y=-11.2-6.45*(1-u*u)**.55*(0.52+0.48*math.sin(math.pi*t))
+        if back:y+=1.8
+        return [x,y,z]
+    for back in [False,True]:
+        for j in range(m+1):
+            for i in range(n+1):vv.append(at(i,j,back))
+    stride=n+1;offset=(n+1)*(m+1)
+    for j in range(m):
+        for i in range(n):
+            a=j*stride+i;b=a+1;c=a+stride;d=c+1
+            ff.extend([[a,b,c],[b,d,c],[a+offset,c+offset,b+offset],[b+offset,c+offset,d+offset]])
+    for i in range(n):
+        a=i;b=i+1;f=offset
+        ff.extend([[a,a+f,b],[b,a+f,b+f]])
+        a=m*stride+i;b=a+1;ff.extend([[a,b,a+f],[b,b+f,a+f]])
+    for j in range(m):
+        a=j*stride;b=(j+1)*stride;f=offset
+        ff.extend([[a,b,a+f],[b,b+f,a+f]])
+        a=j*stride+n;b=(j+1)*stride+n;ff.extend([[a,a+f,b],[b,a+f,b+f]])
+    mesh=trimesh.Trimesh(vertices=vv,faces=ff,process=True)
+    trimesh.repair.fix_normals(mesh);add(name,mesh,'black')
+    path2('mask_upper_lip_seam',[at(i,0) for i in range(0,n+1,2)],.38,'coat_high')
+
+def goggle_ring(name,center,radius=4.8,ring=.82,orient='front'):
+    n=28;pts=[]
+    for j in range(n+1):
+        a=math.tau*j/n
+        if orient=='front':pts.append((center[0]+radius*math.cos(a),center[1],center[2]+radius*math.sin(a)))
+        else:pts.append((center[0],center[1]+radius*math.cos(a),center[2]+radius*math.sin(a)))
+    for k in range(n):
+        cyl(f'{name}_arc_{k:02d}',pts[k],pts[k+1],ring,'black' if k%5 else 'dark_metal',12)
+
+def wing_feather(name,start,end,width,thickness,color,arch=1.6,layer_y=0.):
+    """Curved separate, voluminous feather with soft distal profile."""
+    a=np.array(start,dtype=float);b=np.array(end,dtype=float);dx=b-a
+    perp=np.array([-dx[2],0,dx[0]]);perp/=max(np.linalg.norm(perp),1.e-7)
+    vv=[];ff=[];sections=24;sides=12
+    for i in range(sections):
+        t=i/(sections-1)
+        w=width*(.48+.49*math.sin(math.pi*t*.88)**.65)*(1-.88*max(0,(t-.91)/.09)**1.2)
+        thick=thickness*(.52+.48*math.sin(math.pi*(.12+.82*t)))
+        p=a+dx*t+np.array([0,layer_y+arch*math.sin(math.pi*t)-.28*t,.7*math.sin(math.pi*t)])
+        for j in range(sides):
+            q=math.tau*j/sides
+            vv.append(p+perp*(w*math.cos(q))+np.array([0,.5*thick*math.sin(q),0]))
+    for i in range(sections-1):
+        for j in range(sides):
+            k=(j+1)%sides;u=i*sides+j;v=i*sides+k;c=(i+1)*sides+j;d=(i+1)*sides+k
+            ff.extend([[u,c,v],[v,c,d]])
+    for j in range(1,sides-1):
+        ff.append([0,j+1,j]);ff.append([(sections-1)*sides,(sections-1)*sides+j,(sections-1)*sides+j+1])
+    mesh=trimesh.Trimesh(vertices=vv,faces=ff,process=True)
+    trimesh.repair.fix_normals(mesh);add(name,mesh,color)
+
+def inset_triangle(name,xy,front_y,thick,col):
+    v0=[[x,front_y,z] for x,z in xy]
+    v1=[[x,front_y+thick,z] for x,z in xy]
+    verts=v0+v1;ff=[]
+    for i in range(1,len(xy)-1):
+        ff.extend([[0,i+1,i],[len(xy),len(xy)+i,len(xy)+i+1]])
+    for i in range(len(xy)):
+        j=(i+1)%len(xy)
+        ff.extend([[i,j,i+len(xy)],[j,j+len(xy),i+len(xy)]])
+    mesh=trimesh.Trimesh(vertices=verts,faces=ff,process=True)
+    trimesh.repair.fix_normals(mesh);add(name,mesh,col)
+
 def buckle(name,x,y,z,w,h,met='metal'):
  d=0.65
  for za in [z-h/2,z+h/2]:
@@ -102,56 +210,62 @@ def buckle(name,x,y,z,w,h,met='metal'):
   cyl(name+'_edgeV'+str(xa),(xa,y,z-h/2),(xa,y,z+h/2),d,met,10)
  cyl(name+'_clasp',(x-1,y-.7,z),(x+1,y-.7,z),.46,met)
 
-# HEAD skin with ears, cheeks and heterochromia eyes. The eyes sit in front of face.
-ell('face_visible_sculpt',(0,-0.5,127.0),(18.3,15.0,19.0),'skin',3)
-for s in [-1,1]:
- ell(f'ear_{s}',(s*18.4,0,123.5),(3.3,2.8,5.0),'skin')
- # eyes upper sclera, iris, pupil, reflection layered outwards
- x=s*8.25
- ell(f'eye_white_{s}',(x,-14.4,128.2),(5.25,1.7,4.1),'ivory',3)
- color='purple' if s==-1 else 'rose_eye'
- ell(f'iris_{s}',(x+(-.45 if s==-1 else .3),-16.0,127.75),(3.1,.75,3.45),color,3)
- ell(f'pupil_{s}',(x,-16.6,127.3),(1.35,.48,2.55),'black',2)
- ell(f'eye_glint_{s}',(x-1.2,-17.2,129.0),(.85,.26,.92),'ivory',2)
- path2(f'upper_lash_{s}',[(x-5.8,-15.7,131.3),(x-3,-16,133.1),(x,-15.6,133.1),(x+5,-14.8,131.6)],.48,'black')
-# Black face mask with fabric seams, directly BELOW iris and eye line
-ell('lower_face_black_mask',(0,-11.8,117.0),(14.8,9.7,6.3),'black',3)
-for s in [-1,1]:
- tube(f'mask_strap_{s}',[(s*14,-12.2,121.0),(s*18,-6,123),(s*18.7,.6,123)],.95,.67,'near_black')
-
-# Fanned, asymmetrical white hair. Contour cap and numerous sculpted long locks.
-ell('white_hair_back_mass',(0,4.2,136.4),(20.2,15.7,14.2),'white',3)
-ell('white_hair_nape',(0,9.3,124.1),(19.0,10.0,13.0),'white',3)
-for j in range(17):
- theta=math.pi*.16+j*(math.pi*.92/16)
- x=19*math.cos(theta);y=3+14*math.sin(theta)
- z=142.5 + (2.0 if j%4==0 else 0)
- p1=(x,y,z);p2=(x*1.04,19.7,130.0);p3=(x*.99,18.1,115.8+2.5*math.sin(j*2.1))
- tube(f'back_hair_lock_{j:02d}',[p1,p2,p3],[3.9,3.2,.38],[2.65,1.9,.30], 'hair_highlight' if j%3==0 else 'white',10)
-# visible waves over forehead to right-side of face
-for j in range(12):
- x=-17+j*3.05;z=148.2+.9*math.sin(j*1.9)
- targetx=(-16+j*3.15) + (6 if j>=5 else 1)
- tipz=134.5-5.1*math.sin(j*.30) + (1.8 if j<=2 else 0)
- tube(f'fringe_{j:02d}',[(x,-8.5,z),(x+2,-14.5,z-6),(targetx,-17.5,tipz)],[3.7,3.3,.25],[3.1,2.1,.24], 'hair_highlight' if j%4==1 else 'white',12)
-# long separated hair tufts on left and right temple
-for s in [-1,1]:
- for j in range(4):
-  x=s*(17+j*.65)
-  tube(f'temple_hair_{s}_{j}',[(x,-2+j,143-j*2),(x+s*2,-6-j*.5,130-j*1.1),(x+s*3,-3-j*.6,119-j*.75)], [3.5,2.6,.2],[2.3,1.9,.20],'white',10)
-
-# upper plague doctor cap on model's upper left forehead (from reference, not eye-obscuring)
-ell('plague_helmet_black_shell',(-12.0,-4.4,143),(13.6,12.3,9.4),'black',3)
-ell('plague_helmet_highlight',(-18.3,-12.0,146.6),(4.9,1.2,5.0),'coat_high')
-# beak curved down, hooked -Y toward face and -X
-# avoids obscuring eye on opposite side
-tube('plague_crow_beak',[(-17,-15.5,141),(-20,-19.2,135.4),(-21.5,-22,128.4),(-22,-19.9,123.1)],[5.7,5.4,3.9,.45],[4.4,3.8,2.7,.40],'black',14)
-for s,x in enumerate([-22]):
- ell(f'goggle_rim_outer_{s}',(x,-15.8,140.4),(4.15,1.25,4.6),'metal',3)
- ell(f'goggle_lens_{s}',(x,-17,140.5),(3.15,.95,3.45),'dark_metal',3)
- ell(f'goggle_glass_{s}',(x-.55,-17.7,141.1),(1.65,.24,1.95),'coat_high')
-for i in range(3):ell(f'helmet_rivet_{i}',(-23.4+i*2.6,-18.,134-i*4.1),(.8,.9,.8),'metal')
-
+# Refined V7 head: expressive two-colour eyes, shaped mask, flowing silver hair, sculpted beak.
+ell('face_visible_sculpt',(0,-.5,127),(18.1,14.5,19.0),'skin',4)
+for side in [-1,1]:
+    ell(f'ear_{side}',(side*17.7,-.2,123.2),(3.35,2.65,4.8),'skin',3)
+    x=side*8.35
+    ell(f'sclera_{side}',(x,-14.0,129.0),(5.5,1.4,4.4),'ivory',3)
+    iriscol='purple' if side==-1 else 'rose_eye'
+    ell(f'iris_{side}',(x,-15.35,128.0),(3.55,.62,3.55),iriscol,3)
+    ell(f'iris_lumen_{side}',(x,-15.99,127.5),(2.55,.29,2.8),'hair_shadow' if side==-1 else 'scarlet',3)
+    ell(f'pupil_{side}',(x,-16.3,128.0),(1.25,.23,2.30),'black',3)
+    ell(f'glint_{side}',(x-1.1,-16.7,129.8),(1.1,.28,.85),'ivory',2)
+    ell(f'glint_lower_{side}',(x+.85,-16.6,126.4),(.60,.18,.45),'ivory',1)
+    path2(f'thick_lash_{side}',[(x-5.9,-14.6,132.0),(x-4,-15.1,133.5),(x,-15.2,133.6),(x+5.5,-14.3,132.0)],.68,'near_black')
+    for j in range(2):
+        path2(f'lower_eye_line_{side}_{j}',[(x+(j*2-1)*3.7,-14.3,124.8),(x+(j*2-1)*5.0,-13.5,124.1)],.32,'near_black')
+ell('nose_anime',(0,-15.0,123.8),(1.25,.85,.7),'skin',2)
+fabric_mask('lower_face_mask_tailored')
+for side in [-1,1]:
+    tube(f'face_strap_{side}',[(side*15.6,-10,121.2),(side*18,-6.5,120),(side*19,0,120)],[.75,.75,.68],[.65,.60,.55],'near_black')
+ell('hair_main_smooth_scalp',(0,3.3,139.9),(20.3,13.7,13.7),'white',4)
+ell('hair_nape_underlayer',(0,10.5,128.4),(18.3,11.4,12.4),'hair_shadow',3)
+for j in range(15):
+    u=-1+2*j/14;x=18.7*u;z=148.7-4.2*abs(u)
+    targetx=x+2.9*math.sin(j*.8)
+    ztip=118.4+3.9*abs(u)+1.1*math.sin(j*1.2)
+    sculpted_lock(f'rear_rounded_bob_{j:02d}',
+        [(x*.92,10.5,z),(x,21.7,137.9),(targetx,22.8,126.2),(targetx+1.6*math.sin(j),20.8,ztip)],
+        [3.4,4.2,4.2,.21],[1.5,2.45,2.0,.14],
+        'hair_highlight' if j%4==1 else 'white',normal=(0,1,0))
+for side in [-1,1]:
+    for j in range(3):
+        x=side*(15.0+j*1.6)
+        sculpted_lock(f'side_wispy_bob_{side}_{j}',
+            [(x,6,147-j),(x+side*2,-2.2,136-j),(x+side*1.9,-6,127-j),(x+side*2.9,-3,120-j*1.2)],
+            [3.1,4.0,3.2,.19],[2.2,2.5,1.7,.15],'white')
+for j in range(10):
+    x=-14.6+3.1*j;drop=max(0,j-2);endx=x+6.6+1.2*math.sin(.9*j)
+    endz=136.8-1.0*drop-1.0*math.sin(.75*j)
+    sculpted_lock(f'forehead_swept_white_lock_{j:02d}',
+        [(x,-4.8,149.3),(x+1.4,-10.4,145.9),(x+4.1,-14.7,140.5),(endx,-15.7,endz)],
+        [2.15,3.6,4.0,.13],[1.9,2.4,1.4,.12], 'hair_highlight' if j in (4,8) else 'white')
+ell('plague_mask_asymmetric_leather_dome',(-12.1,-4.2,142.1),(13.1,12.2,10.1),'black',4)
+sculpted_lock('plague_beak_hooked_profile',
+    [(-13.3,-13.5,143.3),(-17.2,-17.6,138.7),(-19.0,-19.6,129.3),(-18.8,-19.4,120.0)],
+    [5.25,5.3,3.3,.24],[3.7,3.5,2.5,.23],'black',normal=(0,-1,0))
+sculpted_lock('beak_highlight_right_lobe',
+    [(-15,-16.6,140),(-18.4,-18.2,134.6),(-19.1,-18.9,125)],
+    [1.55,1.25,.14],[.5,.4,.1],'coat_high')
+ell('helmet_front_goggle_glass',(-13.5,-15.45,142.4),(3.8,1.55,3.9),'dark_metal',3)
+ell('helmet_front_goggle_reflection',(-14.15,-17.00,143.1),(2.8,.22,2.5),'coat_high',3)
+goggle_ring('helmet_front_goggle_metal_ring',(-13.5,-16.5,142.4),4.1,.68)
+ell('helmet_side_goggle_glass',(-23.6,-3.6,143.9),(1.1,3.45,3.7),'dark_metal',3)
+goggle_ring('helmet_side_goggle_ring',(-24.3,-3.6,143.9),3.8,.68,orient='side')
+path2('plague_plate_seam',[(-20,-10.2,150),(-20,-11.5,145),(-20,-13.5,138),(-19.3,-16,132)],.32,'coat_high')
+for i,p in enumerate([(-21,-14,134),(-22,-15.5,130),(-22.1,-17.2,125)]):
+    ell(f'plague_helmet_rivet_{i}',p,(.91,.66,.91),'metal')
 # NECK black choker, collar/ruff layered, asymmetrical goth fashion
 ell('neck',(0,1,109),(6.8,7.0,6.2),'skin')
 ell('neck_choker',(0,-0.0,113.6),(7.0,7.3,2.2),'near_black')
@@ -168,6 +282,7 @@ ell('front_pendant_amber_star',(0,-13.8,102),(1.0,1.,1.),'scarlet')
 star('jacket_heart_flower',(0,-14.7,101.9),3.8,1.7,1.3,'scarlet')
 cyl('necklace_1',(-5,-11.8,108),(0,-13.1,102),.53,'metal');cyl('necklace_2',(5,-11.8,108),(0,-13.1,102),.53,'metal')
 
+inset_triangle('real_skin_open_v_neckline',[(-5.7,108.3),(5.7,108.3),(0,97.8)],-13.0,1.15,'skin')
 # arms with visible pale shoulders, full bell sleeves no slicing
 for s in [-1,1]:
  ell(f'shoulder_skin_{s}',(s*20.4,-.1,100.5),(3.0,3.3,4.6),'skin')
@@ -215,29 +330,36 @@ for s in [-1,1]:
   cyl(f'boot_lace_cross_A_{s}_{k}',(x-2.7,-9.1,z),(x+2.7,-9.1,z2),.38,'near_black',8)
   cyl(f'boot_lace_cross_B_{s}_{k}',(x+2.7,-9.1,z),(x-2.7,-9.1,z2),.38,'near_black',8)
 
-# elaborate blue wings, real sculpted feather geometry, separate side roots, 3 tiers
-for s in [-1,1]:
- # hidden wing root pad sits behind shoulder (not the already-tested hardware)
- ell(f'WING_{"L" if s==-1 else "R"}_root',(s*17,12.8,110.2),(8.2,4.0,6.0),'wing_l' if s==-1 else 'wing_r',2)
- for layer in range(3):
-  num=[13,13,13][layer]
-  for i in range(num):
-   u=i/(num-1);startx=18+layer*3.0+i*.9
-   endx=29+u*(36-layer*4)+layer*2
-   z0=115.7-layer*3.8 + 2.8*u
-   # a high outer leading edge; outer feathers sweep and curve down toward tips
-   z1=129.0+5.8*math.sin(math.pi*u*.89)-7.0*u-layer*6.4
-   a=(s*startx,12+layer*.5,z0);b=(s*endx,13.5+layer*.6,z1)
-   palette=(['wing_l_light','wing_l','wing_l_dark'] if s==-1 else ['wing_r_light','wing_r','wing_r_dark'])
-   feather(f'WING_{"L" if s==-1 else "R"}_tier{layer}_primary{i:02}',a,b,3.0-0.35*layer,1.9,palette[layer],.9)
-   # each primary shaft and sculpted barb veins as relief, may become post-paint at 150 mm
-   p1=np.array(a)*.38+np.array(b)*.62;p2=np.array(a)*.13+np.array(b)*.87
-   cyl(f'feather_vein_{s}_{layer}_{i}',p1+np.array([0,-1.3,0]),p2+np.array([0,-1.3,0]),.22,palette[(layer+1)%3],6)
- # fan over root, small overlapping coverts
- for i in range(16):
-  xx=17+i*2.6; zz=115.5-4*(i/15)
-  feather(f'wing_root_coverts_{s}_{i}',(s*xx,12,zz),(s*(xx+12),11.9,zz+4.8),2.85,2.8, 'wing_l' if s==-1 else 'wing_r',.3)
-
+# Three feather tiers on anatomically arched floating wings.
+for side in [-1,1]:
+    wingstr='L' if side==-1 else 'R'
+    primary='wing_l' if side==-1 else 'wing_r'
+    light='wing_l_light' if side==-1 else 'wing_r_light'
+    dark='wing_l_dark' if side==-1 else 'wing_r_dark'
+    ell(f'WING_{wingstr}_strong_root',(side*18.8,15,105.4),(4.9,3.6,5.7),primary,3)
+    tube(f'WING_{wingstr}_joint_arm',
+        [(side*18.1,15.4,107.5),(side*27.5,19,107.0),(side*36,21,108.7),(side*44.2,21.1,112.0)],
+        [3.7,4.25,3.35,1.8],[3.4,3.5,3.,1.4],primary,20)
+    for i in range(15):
+        t=i/14
+        sx=31.1-5.2*t;sz=111.1-9.1*t
+        ex=75.0-39.*(t**1.45)+1.2*math.sin(i*1.43)
+        ez=120.0-36.4*t+1.6*math.sin(t*math.pi)
+        wing_feather(f'WING_{wingstr}_primary_{i:02d}',(side*sx,20.3,sz),
+           (side*ex,20.9,ez),4.05+.4*t,2.55,dark if side==1 else primary,arch=1.8)
+    for i in range(16):
+        t=i/15;sx=23.6+5.8*math.sin(math.pi*t);sz=107.2-8.0*t
+        ex=63.2-31.0*t**1.5;ez=117.0-30.2*t
+        wing_feather(f'WING_{wingstr}_secondary_{i:02d}',(side*sx,18.5,sz),
+           (side*ex,16.8,ez),4.2,2.5,primary,arch=1.15)
+    for i in range(15):
+        t=i/14;x=21.+12*t;z=105.4-6.3*t
+        wing_feather(f'WING_{wingstr}_covert_{i:02d}',(side*(x-5),15.0,z+1.8),
+            (side*(x+9),15.5,z+1-5*t),3.85,2.1,light if i%3==0 else primary,.65)
+    for i in range(12):
+        t=i/11;sx=33-6*t;sz=110-8*t;ex=70-34*t**1.45;ez=119-34*t
+        a=np.array([side*sx,17.75,sz]);b=np.array([side*ex,17.65,ez])
+        cyl(f'WING_{wingstr}_embossed_shaft_{i:02d}',a*.75+b*.25,a*.10+b*.90,.20,light,8)
 # Rear silver 5-point star and two vivid blue hanging ribbons
 star('rear_SILVER_star',(0,16.1,108.5),4.3,1.9,1.8,'metal')
 for s in [-1,1]:
@@ -252,6 +374,11 @@ scale=150.0/(raw_max-raw_min)
 for _,_,mesh in PARTS:
  mesh.apply_translation([0,0,-raw_min]);mesh.apply_scale(scale)
  v=mesh.vertices.copy();v[:,2]=np.where(v[:,2]<=62.0,v[:,2]*(46.0/62.0),46.0+(v[:,2]-62.0)*(104.0/88.0));mesh.vertices=v
+for name,color,mesh in PARTS:
+ if name.startswith('WING_'):
+  v=mesh.vertices.copy();ax=np.abs(v[:,0])
+  v[:,0]=np.sign(v[:,0])*(np.minimum(ax,18.)+np.maximum(0.,ax-18.)*.68)
+  mesh.vertices=v
 scene=trimesh.Scene()
 counts=Counter()
 report=[]
@@ -266,13 +393,13 @@ scene.export(os.path.join(OUT,'WINGED_CHARACTER_V6_NEW_SCULPT_CANDIDATE.glb'),fi
 # Export source manifest and explicit QA status; no final STL until human approves shape.
 with open(os.path.join(OUT,'COMPONENTS.json'),'w',encoding='utf-8') as f:json.dump(report,f,indent=2,ensure_ascii=False)
 check={'source':'original_user_18_views','geometry_is_new':True,'derivative_of_v5':False,
-'profile':'reference-driven procedural first candidate','target_height_mm':150,
+'profile':'V7 refined geometry, reference-led sculptural candidate','target_height_mm':150,
 'assembly_orientation':'Z-up front=-Y','art_approved':False,'print_ready_certified':False,
 'final_colour_stl_released':False,'components':len(report),'material_bodies':dict(counts),
 'watertight_components':sum(x['watertight'] for x in report),
 'positive_volume_components':sum(x['positive_volume'] for x in report),
 'candidate_bounds_mm':np.round(scene.bounds,2).tolist(),
-'needs_work':['independent frontal/back/sides silhouette matching','manual face and mask likeness review',
+'needs_work':['expert visual review of revised face, hair, wing silhouette','manual proof of eye, mask and helmet identity',
  'physical union by colour','wing bridge integration','printer tolerances','slicer acceptance']}
 with open(os.path.join(OUT,'QA_CANDIDATE_NOT_RELEASED.json'),'w',encoding='utf-8') as f:json.dump(check,f,indent=2,ensure_ascii=False)
 print(json.dumps(check,indent=2,ensure_ascii=False))
