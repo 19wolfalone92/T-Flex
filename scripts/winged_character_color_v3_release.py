@@ -128,13 +128,13 @@ def accessories():
                .ellipse(47,32).ellipse(44,29).extrude(.8)))
     stand_solid = stand.translate((0,0,-5.5)).val()
     # CAD export produces 94 x 64 mm oval black stand.
-    stand_stl = stand_solid.translate((0,0,5.5))
+    stand_stl = stand_solid
     return {
         **hands,
         "10": star(0.,107.5,4.75,2.25,15.9,17.6),
         **ribbons,
         "13": star(0.,78.3,3.2,1.5,-15.8,-14.8),
-        "14": trimesh.Trimesh(*trimesh.load_mesh(_stand_temp(stand_stl)),process=True) if False else None,
+        "14": None,  # Replaced by native CAD stand STL during build.
     }, stand_solid, stand_stl
 
 
