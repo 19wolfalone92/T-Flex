@@ -1,0 +1,128 @@
+name: Winged figurine V3 — intact arms, colour STL, real sockets, T-FLEX STEP
+
+on:
+  push:
+    branches:
+      - feature/winged-figurine-v3-colour-sockets-20261119
+      - main
+    paths:
+      - .github/workflows/winged-figurine-colour-v3.yml
+      - scripts/figurine_v3_joinery.py
+      - scripts/winged_character_color_v3_release.py
+  pull_request:
+    paths:
+      - .github/workflows/winged-figurine-colour-v3.yml
+      - scripts/figurine_v3_joinery.py
+      - scripts/winged_character_color_v3_release.py
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  produce-and-verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install all local mesh + T-FLEX STEP export dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install 'cadquery>=2.6,<3' 'vtk>=9.4,<10' 'trimesh>=4.8,<5' \
+            'numpy>=1.26,<3' 'networkx>=3,<4' 'scipy>=1.12,<2' 'shapely>=2,<3' Pillow
+      - name: Fetch previously published source geometry from this repository
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p /tmp/figure-v1 /tmp/figure-v3
+          gh release download figurine-150mm-tflex18-20261118 \
+            --repo "${{ github.repository }}" \
+            --pattern "Winged_Character_TFLEX_150mm_READY_FILES.zip" \
+            --dir /tmp/figure-v1
+          python - <<'PY'
+          import zipfile, pathlib
+          archive=pathlib.Path('/tmp/figure-v1/Winged_Character_TFLEX_150mm_READY_FILES.zip')
+          assert archive.stat().st_size>20_000_000
+          with zipfile.ZipFile(archive) as z:
+              assert z.testzip() is None
+              name='STL_PRINT/01_CHARACTER_FULL_150mm.stl'
+              assert name in z.namelist()
+              z.extract(name, '/tmp/figure-v1')
+          print('Source: original full 150-mm AI mesh; no regenerated or missing body parts.')
+          PY
+      - name: Rebuild 14 high-resolution colour components and 8 pairs of blind sockets
+        run: |
+          python -u -m scripts.winged_character_color_v3_release \
+            /tmp/figure-v1/STL_PRINT/01_CHARACTER_FULL_150mm.stl \
+            /tmp/figure-v3/kit
+      - name: Independent final CAD and STL verification
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json,zipfile,trimesh,numpy as np
+          from OCP.STEPControl import STEPControl_Reader
+          from OCP.BRepCheck import BRepCheck_Analyzer
+          from OCP.IFSelect import IFSelect_RetDone
+          base=Path('/tmp/figure-v3/kit')
+          manifest=json.loads((base/'QA_MANIFEST.json').read_text())
+          assert manifest['original_triangles']==301248
+          assert manifest['original_seven_parts_volume_conserved']
+          assert len(manifest['parts'])==14 and len(manifest['joints'])==8
+          assert manifest['blind_holes_in_print_STL'] and manifest['eight_real_mating_pins']
+          assert manifest['print_ready_certified'] is False
+          for file in (base/'STL_ASSEMBLY').glob('*.stl'):
+              m=trimesh.load_mesh(str(file),force='mesh')
+              assert m.is_watertight and m.is_winding_consistent and m.volume>0,file
+          for file in (base/'STL_PRINT').glob('*.stl'):
+              m=trimesh.load_mesh(str(file),force='mesh')
+              assert abs(m.bounds[0,2]) < .03,file
+              assert m.is_watertight and m.is_winding_consistent,file
+          assert len(list((base/'STL_PINS').glob('*PRINT.stl')))==8
+          r=STEPControl_Reader()
+          s=base/'T-FLEX_18_V3_COLOUR_PARTS_WITH_HOLES.step'
+          assert s.stat().st_size>1_000_000
+          assert r.ReadFile(str(s))==IFSelect_RetDone and r.TransferRoots()>0
+          assert BRepCheck_Analyzer(r.OneShape()).IsValid()
+          archive=base.parent/'Winged_Character_COLOUR_V3_TFLEX_STL_WITH_REAL_SOCKETS.zip'
+          with zipfile.ZipFile(archive) as z:
+              assert z.testzip() is None and z.getinfo(s.name)
+          print('PASS: intact colour parts, manifold sockets, pins, faceted T-FLEX STEP, zipped 3D model.')
+          PY
+      - name: Publish exact generated ZIP for review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: winged-figurine-v3-colour-stl-step
+          path: |
+            /tmp/figure-v3/Winged_Character_COLOUR_V3_TFLEX_STL_WITH_REAL_SOCKETS.zip
+            /tmp/figure-v3/kit/QA_MANIFEST.json
+          retention-days: 14
+          if-no-files-found: warn
+      - name: Publish final GitHub Release only after main is merged and validated
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cat > /tmp/figure-v3/release_notes.md <<'EOF'
+          Winged Character v3 — 150 mm / T-FLEX CAD 18 / monochrome FDM printer.
+
+          14 colour-separated STL components, preserving original sleeves and
+          adding independent small stylized hands. 8 loose pins and 16 sockets
+          already cut into printable geometry; 2 tolerance coupons and a
+          T-FLEX-readable faceted assembly STEP with mating holes.
+
+          Important: the model is based on the earlier Hi3DGen reconstruction,
+          **not** a photogrammetric or exact reconstruction of the subsequent
+          detailed 2D concept. Printer suitability, thin wing strength,
+          print supports and material fit still need physical validation.
+          EOF
+          gh release create figurine-150mm-colours-v3-20261119 \
+            "/tmp/figure-v3/Winged_Character_COLOUR_V3_TFLEX_STL_WITH_REAL_SOCKETS.zip" \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "Winged figurine V3 — colour STL + real pins and T-FLEX STEP" \
+            --notes-file /tmp/figure-v3/release_notes.md \
+            --latest=false
