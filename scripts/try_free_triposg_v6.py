@@ -15,6 +15,7 @@ import requests
 import trimesh
 from PIL import Image
 from gradio_client import Client, handle_file
+import inspect
 
 OUTPUT=Path("/tmp/triposg-v6-test")
 OUTPUT.mkdir(parents=True,exist_ok=True)
@@ -29,7 +30,8 @@ reference=OUTPUT/"source_public_studio_front.png"
 reference.write_bytes(response.content)
 with Image.open(reference) as image:
     image.verify()
-api=Client("VAST-AI/TripoSG",hf_token=os.environ.get("HF_TOKEN") or None,verbose=False)
+token_param = "token" if "token" in inspect.signature(Client.__init__).parameters else "hf_token"
+api=Client("VAST-AI/TripoSG",verbose=False,**{token_param:os.environ.get("HF_TOKEN") or None})
 print("FREE_TRIPOSG_CONNECT_SUCCESS_NO_PAID_CREDITS",flush=True)
 source=api.predict(handle_file(str(reference)),api_name="/run_segmentation")
 print("SOURCE_SEGMENTATION_COMPLETE",flush=True)
