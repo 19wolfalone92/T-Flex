@@ -2,9 +2,22 @@
 import json
 import os
 from pathlib import Path
+import pytest
 import trimesh
 
 ROOT=Path(os.environ.get("V8_OUT","./out/v8"))
+GLB=ROOT/"WINGED_CHARACTER_V8_200MM_HIGHPOLY_CANDIDATE.glb"
+QA=ROOT/"V8_GEOMETRY_QA.json"
+
+@pytest.fixture(autouse=True)
+def require_generated_v8_artifact():
+    """Normal unit CI doesn't generate geometry. Dedicated V8 CI must."""
+    if GLB.is_file() and QA.is_file():
+        return
+    if os.environ.get("V8_REQUIRE_ARTIFACT") == "1":
+        pytest.fail("Missing V8 model or QA in mandatory V8 CI", pytrace=False)
+    pytest.skip("V8 artifact not generated; full checks run in V8 dedicated workflow")
+
 
 def test_real_glb_and_200mm():
     p=ROOT/"WINGED_CHARACTER_V8_200MM_HIGHPOLY_CANDIDATE.glb"
