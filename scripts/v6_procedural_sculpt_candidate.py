@@ -108,14 +108,14 @@ for s in [-1,1]:
  ell(f'ear_{s}',(s*18.4,0,123.5),(3.3,2.8,5.0),'skin')
  # eyes upper sclera, iris, pupil, reflection layered outwards
  x=s*8.25
- ell(f'eye_white_{s}',(x,-14.4,128.2),(6.2,1.7,5.0),'ivory',3)
+ ell(f'eye_white_{s}',(x,-14.4,128.2),(5.25,1.7,4.1),'ivory',3)
  color='purple' if s==-1 else 'rose_eye'
- ell(f'iris_{s}',(x+(-.45 if s==-1 else .3),-16.0,127.75),(3.55,.75,4.00),color,3)
- ell(f'pupil_{s}',(x,-16.6,127.3),(1.55,.48,3.05),'black',2)
+ ell(f'iris_{s}',(x+(-.45 if s==-1 else .3),-16.0,127.75),(3.1,.75,3.45),color,3)
+ ell(f'pupil_{s}',(x,-16.6,127.3),(1.35,.48,2.55),'black',2)
  ell(f'eye_glint_{s}',(x-1.2,-17.2,129.0),(.85,.26,.92),'ivory',2)
  path2(f'upper_lash_{s}',[(x-5.8,-15.7,131.3),(x-3,-16,133.1),(x,-15.6,133.1),(x+5,-14.8,131.6)],.48,'black')
 # Black face mask with fabric seams, directly BELOW iris and eye line
-ell('lower_face_black_mask',(0,-11.8,117.0),(16.8,10.0,6.6),'black',3)
+ell('lower_face_black_mask',(0,-11.8,117.0),(14.8,9.7,6.3),'black',3)
 for s in [-1,1]:
  tube(f'mask_strap_{s}',[(s*14,-12.2,121.0),(s*18,-6,123),(s*18.7,.6,123)],.95,.67,'near_black')
 
@@ -172,13 +172,13 @@ cyl('necklace_1',(-5,-11.8,108),(0,-13.1,102),.53,'metal');cyl('necklace_2',(5,-
 for s in [-1,1]:
  ell(f'shoulder_skin_{s}',(s*20.4,-.1,100.5),(3.0,3.3,4.6),'skin')
  ell(f'shoulder_puff_{s}',(s*21.4,1.7,104.2),(4.5,5.7,3.2),'black')
- tube(f'arm_full_flared_sleeve_{s}',[(s*23.1,0.9,98.8),(s*24.8,.7,91),(s*28.6,.2,80.3),(s*31.5,-1.9,72.0)],[5.3,5.9,7.5,9.3],[4.3,4.4,5.0,5.7],'coat',18)
- tube(f'long_sleeve_open_cuff_{s}',[(s*30.3,-1.8,74.0),(s*31.5,-1.5,72.3)], [8.0,9.25],[5.5,5.8],'coat_high',18)
- for k in range(3):ell(f'sleeve_cuff_rivet_{s}_{k}',(s*(26.5+4*k),-5.7,73.2),(1.,.7,.9),'metal')
+ tube(f'arm_full_flared_sleeve_{s}',[(s*23.1,0.9,98.8),(s*24.8,.7,91),(s*28.6,.2,71.0),(s*31.5,-1.9,62.8)],[5.3,5.9,7.5,9.3],[4.3,4.4,5.0,5.7],'coat',18)
+ tube(f'long_sleeve_open_cuff_{s}',[(s*30.3,-1.8,64.4),(s*31.5,-1.5,62.7)], [8.0,9.25],[5.5,5.8],'coat_high',18)
+ for k in range(3):ell(f'sleeve_cuff_rivet_{s}_{k}',(s*(26.5+4*k),-5.7,63.6),(1.,.7,.9),'metal')
  tube(f'arm_black_strap_{s}',[(s*23,-5,97.5),(s*27.8,-5,96)],1.5,.85,'near_black')
  buckle(f'shoulder_buckle_{s}',s*25.2,-5.7,96.5,4.4,4.1)
  # exposed small hand below cuff
- ell(f'hand_{s}',(s*31.5,-1.8,70.1),(3.2,3.6,3.0),'skin')
+ ell(f'hand_{s}',(s*31.5,-1.8,60.3),(3.2,3.6,3.0),'skin')
 
 # trousers black shorts, jacket waist, buttons and red stitching
 tube('black_short_waist',[(0,0,80),(0,0,73),(0,0,67)],[15.7,15.8,16.2],[8.4,8.8,9.1],'near_black',20)
@@ -251,6 +251,7 @@ raw_bounds=np.array([m.bounds for _,_,m in PARTS]); raw_min=float(raw_bounds[:,0
 scale=150.0/(raw_max-raw_min)
 for _,_,mesh in PARTS:
  mesh.apply_translation([0,0,-raw_min]);mesh.apply_scale(scale)
+ v=mesh.vertices.copy();v[:,2]=np.where(v[:,2]<=62.0,v[:,2]*(46.0/62.0),46.0+(v[:,2]-62.0)*(104.0/88.0));mesh.vertices=v
 scene=trimesh.Scene()
 counts=Counter()
 report=[]
