@@ -15,6 +15,7 @@ jobs:
     env:
       V6_OUT: ${{ github.workspace }}/out/v7
       V8_OUT: ${{ github.workspace }}/out/v8
+      V8_REQUIRE_ARTIFACT: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
