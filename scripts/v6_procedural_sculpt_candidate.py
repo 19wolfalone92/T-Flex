@@ -134,7 +134,7 @@ def fabric_mask(name):
         u=-1.+2.*i/n;t=j/m
         x=16.8*u*(1-.10*t-.12*t*t)
         top=122.4+4.2*(abs(u)**1.35)
-        bottom=108.9+10.0*(abs(u)**1.7)
+        bottom=113.2+5.8*(abs(u)**1.7)
         z=top*(1-t)+bottom*t
         y=-11.2-6.45*(1-u*u)**.55*(0.52+0.48*math.sin(math.pi*t))
         if back:y+=1.8
@@ -211,18 +211,18 @@ def buckle(name,x,y,z,w,h,met='metal'):
  cyl(name+'_clasp',(x-1,y-.7,z),(x+1,y-.7,z),.46,met)
 
 # Refined V7 head: expressive two-colour eyes, shaped mask, flowing silver hair, sculpted beak.
-ell('face_visible_sculpt',(0,-.5,127),(18.1,14.5,19.0),'skin',4)
+ell('face_visible_sculpt',(0,-.5,127),(18.1,14.5,17.1),'skin',4)
 for side in [-1,1]:
     ell(f'ear_{side}',(side*17.7,-.2,123.2),(3.35,2.65,4.8),'skin',3)
     x=side*8.35
-    ell(f'sclera_{side}',(x,-14.0,129.0),(5.5,1.4,4.4),'ivory',3)
+    ell(f'sclera_{side}',(x,-14.0,129.0),(6.0,1.4,3.55),'ivory',3)
     iriscol='purple' if side==-1 else 'rose_eye'
-    ell(f'iris_{side}',(x,-15.35,128.0),(3.55,.62,3.55),iriscol,3)
+    ell(f'iris_{side}',(x,-15.35,128.0),(3.6,.62,3.3),iriscol,3)
     ell(f'iris_lumen_{side}',(x,-15.99,127.5),(2.55,.29,2.8),'hair_shadow' if side==-1 else 'scarlet',3)
     ell(f'pupil_{side}',(x,-16.3,128.0),(1.25,.23,2.30),'black',3)
     ell(f'glint_{side}',(x-1.1,-16.7,129.8),(1.1,.28,.85),'ivory',2)
     ell(f'glint_lower_{side}',(x+.85,-16.6,126.4),(.60,.18,.45),'ivory',1)
-    path2(f'thick_lash_{side}',[(x-5.9,-14.6,132.0),(x-4,-15.1,133.5),(x,-15.2,133.6),(x+5.5,-14.3,132.0)],.68,'near_black')
+    path2(f'thick_lash_{side}',[(x-6.0,-14.6,131.7),(x-4,-15.1,132.3),(x,-15.2,132.5),(x+6.0,-14.3,131.8)],.43,'near_black')
     for j in range(2):
         path2(f'lower_eye_line_{side}_{j}',[(x+(j*2-1)*3.7,-14.3,124.8),(x+(j*2-1)*5.0,-13.5,124.1)],.32,'near_black')
 ell('nose_anime',(0,-15.0,123.8),(1.25,.85,.7),'skin',2)
@@ -237,7 +237,7 @@ for j in range(15):
     ztip=118.4+3.9*abs(u)+1.1*math.sin(j*1.2)
     sculpted_lock(f'rear_rounded_bob_{j:02d}',
         [(x*.92,10.5,z),(x,21.7,137.9),(targetx,22.8,126.2),(targetx+1.6*math.sin(j),20.8,ztip)],
-        [3.4,4.2,4.2,.21],[1.5,2.45,2.0,.14],
+        [3.4,4.2,4.2,1.1],[1.5,2.45,2.0,.5],
         'hair_highlight' if j%4==1 else 'white',normal=(0,1,0))
 for side in [-1,1]:
     for j in range(3):
@@ -247,10 +247,10 @@ for side in [-1,1]:
             [3.1,4.0,3.2,.19],[2.2,2.5,1.7,.15],'white')
 for j in range(10):
     x=-14.6+3.1*j;drop=max(0,j-2);endx=x+6.6+1.2*math.sin(.9*j)
-    endz=136.8-1.0*drop-1.0*math.sin(.75*j)
+    endz=136.7-(2.0*drop if j>=5 else .4*drop)-1.1*math.sin(.75*j)
     sculpted_lock(f'forehead_swept_white_lock_{j:02d}',
-        [(x,-4.8,149.3),(x+1.4,-10.4,145.9),(x+4.1,-14.7,140.5),(endx,-15.7,endz)],
-        [2.15,3.6,4.0,.13],[1.9,2.4,1.4,.12], 'hair_highlight' if j in (4,8) else 'white')
+        [(x,-4.8,149.3),(x+1.4,-10.4,145.9),(x+4.1,-14.7,140.5),(endx,-18.25 if j>=5 else -15.7,endz)],
+        [2.15,3.6,4.0,1.15],[1.9,2.4,1.4,.47], 'hair_highlight' if j in (4,8) else 'white')
 ell('plague_mask_asymmetric_leather_dome',(-12.1,-4.2,142.1),(13.1,12.2,10.1),'black',4)
 sculpted_lock('plague_beak_hooked_profile',
     [(-13.3,-13.5,143.3),(-17.2,-17.6,138.7),(-19.0,-19.6,129.3),(-18.8,-19.4,120.0)],
@@ -336,9 +336,9 @@ for side in [-1,1]:
     primary='wing_l' if side==-1 else 'wing_r'
     light='wing_l_light' if side==-1 else 'wing_r_light'
     dark='wing_l_dark' if side==-1 else 'wing_r_dark'
-    ell(f'WING_{wingstr}_strong_root',(side*18.8,15,105.4),(4.9,3.6,5.7),primary,3)
+    ell(f'WING_{wingstr}_strong_root',(side*18.8,22,105.4),(3.7,3.1,4.6),primary,3)
     tube(f'WING_{wingstr}_joint_arm',
-        [(side*18.1,15.4,107.5),(side*27.5,19,107.0),(side*36,21,108.7),(side*44.2,21.1,112.0)],
+        [(side*18.1,22.4,107.5),(side*27.5,21.8,107.0),(side*36,22,108.7),(side*44.2,21.1,112.0)],
         [3.7,4.25,3.35,1.8],[3.4,3.5,3.,1.4],primary,20)
     for i in range(15):
         t=i/14
@@ -393,7 +393,7 @@ scene.export(os.path.join(OUT,'WINGED_CHARACTER_V6_NEW_SCULPT_CANDIDATE.glb'),fi
 # Export source manifest and explicit QA status; no final STL until human approves shape.
 with open(os.path.join(OUT,'COMPONENTS.json'),'w',encoding='utf-8') as f:json.dump(report,f,indent=2,ensure_ascii=False)
 check={'source':'original_user_18_views','geometry_is_new':True,'derivative_of_v5':False,
-'profile':'V7 refined geometry, reference-led sculptural candidate','target_height_mm':150,
+'profile':'V7 3rd iteration - tighter mask, partial eye cover, rounded hair and hidden wing roots','target_height_mm':150,
 'assembly_orientation':'Z-up front=-Y','art_approved':False,'print_ready_certified':False,
 'final_colour_stl_released':False,'components':len(report),'material_bodies':dict(counts),
 'watertight_components':sum(x['watertight'] for x in report),
