@@ -1,0 +1,82 @@
+name: V8 200mm genuine 3D candidate + wing hardware
+on:
+  push:
+    branches: ["research/v8-ultradetail-200mm-20261119"]
+    paths: ["scripts/v8_*.py", "tests/test_v8_200mm_candidate.py", ".github/workflows/v8-200mm-dev.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  candidate-3d-real:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      V6_OUT: ${{ github.workspace }}/out/v7
+      V8_OUT: ${{ github.workspace }}/out/v8
+      V8_REQUIRE_ARTIFACT: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install 3D requirements
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "numpy>=1.26,<3" "scipy>=1.12" "networkx>=3.2" "trimesh>=4.5" "vtk>=9.3" pytest
+      - name: Rebuild V7 reference-only input
+        run: python scripts/v8_base_v7_draft_source.py
+      - name: Build 200 mm highpoly geometry candidate
+        run: python scripts/v8_200mm_sculpt_candidate.py --source-glb "$V6_OUT/WINGED_CHARACTER_V6_NEW_SCULPT_CANDIDATE.glb" --output-dir "$V8_OUT"
+      - name: Check GLB technical quality and fail-closed release
+        run: python -m pytest -q tests/test_v8_200mm_candidate.py
+      - name: Render five views from actual GLB
+        run: |
+          if command -v xvfb-run >/dev/null; then
+            xvfb-run -a python scripts/v8_200mm_render_five_views.py
+          else
+            python scripts/v8_200mm_render_five_views.py
+          fi
+          test -s "$V8_OUT/V8_FRONT_RENDER.png"
+          test -s "$V8_OUT/V8_BACK_RENDER.png"
+          test -s "$V8_OUT/V8_LEFT_RENDER.png"
+          test -s "$V8_OUT/V8_RIGHT_RENDER.png"
+          test -s "$V8_OUT/V8_3Q_RENDER.png"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: V8_200MM_TRUE_GLB_DRAFT_NOT_PRINT_READY
+          path: out/v8/
+          retention-days: 30
+          if-no-files-found: error
+
+  prototype-wing-hardware:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install CAD requirements
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "numpy<3" "trimesh>=4.5" "networkx>=3.2" cadquery
+      - name: Generate 200 mm keyed mounts, STEP and fit coupons
+        run: python scripts/v8_200mm_wing_mount_cad.py out/v8_hardware
+      - name: Verify the mount remains an unapproved prototype
+        run: |
+          python - <<'PY'
+          import json
+          q=json.load(open('out/v8_hardware/HARDWARE_QA.json'))
+          assert len(q['parts_volume_mm3'])==3 and q['step_valid']
+          assert q['prototype_for_figure_mm']==200
+          assert q['original_character_wings_attached'] is False
+          assert q['print_ready_certified'] is False
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: V8_200MM_CAD_WING_MOUNT_PROTOTYPE_ONLY
+          path: out/v8_hardware/
+          retention-days: 30
+          if-no-files-found: error
