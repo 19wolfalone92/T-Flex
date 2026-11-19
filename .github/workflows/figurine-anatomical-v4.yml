@@ -52,9 +52,13 @@ jobs:
           python -u -m scripts.rebuild_v4_from_v3_zip \
             /tmp/winged-v4/v3/Winged_Character_COLOUR_V3_TFLEX_STL_WITH_REAL_SOCKETS.zip \
             /tmp/winged-v4/new
+      - name: Install headless OpenGL backend for real VTK rendering
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb libgl1-mesa-dri libgl1 libegl1 libosmesa6
       - name: Render actual 14-color physical geometry from all sides
         run: |
-          python scripts/preview_v4_reconstructed_geometry.py \
+          xvfb-run -a -s '-screen 0 1280x1024x24' python scripts/preview_v4_reconstructed_geometry.py \
             /tmp/winged-v4/new/kit/STL_ASSEMBLY \
             /tmp/winged-v4/new/V4_REAL_STL_PREVIEW_5_VIEWS.png
       - name: Strong independent release acceptance
