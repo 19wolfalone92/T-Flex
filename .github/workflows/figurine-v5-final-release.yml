@@ -1,0 +1,163 @@
+name: Winged Figurine V5 — Separate Black Mask + Real Foot Mounts
+
+on:
+  push:
+    branches:
+      - feature/figurine-v5-mask-and-foot-mounts-20261119
+      - main
+    paths:
+      - .github/workflows/figurine-v5-final-release.yml
+      - scripts/figurine_v5_colour_mask_and_feet.py
+      - scripts/preview_v5_reconstructed_geometry.py
+  pull_request:
+    paths:
+      - .github/workflows/figurine-v5-final-release.yml
+      - scripts/figurine_v5_colour_mask_and_feet.py
+      - scripts/preview_v5_reconstructed_geometry.py
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: winged-figurine-v5-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build_and_qa:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install real mesh + OpenCascade CAD + manifold boolean dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]" 'cadquery>=2.6,<3' 'vtk>=9.4,<10' \
+            'scipy>=1.12,<2' 'scikit-image>=0.23,<1' 'manifold3d>=2.5,<4'
+          python - <<'PY'
+          import trimesh
+          print('Boolean engines:',trimesh.boolean.engines_available)
+          assert 'manifold' in trimesh.boolean.engines_available
+          PY
+      - name: Retrieve the published V4 source (hands, wings, sleeves unchanged)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p /tmp/tflex-v5/source
+          gh release download figurine-anatomical-hands-v4-20261119 \
+            --repo "${{ github.repository }}" \
+            --pattern Winged_Character_V4_HighDetail_Hands_STL_STEP.zip \
+            --dir /tmp/tflex-v5/source
+          test -s /tmp/tflex-v5/source/Winged_Character_V4_HighDetail_Hands_STL_STEP.zip
+      - name: Build actual black face mask overlay, two base dowels and STEP assembly
+        run: |
+          python -u -m scripts.figurine_v5_colour_mask_and_feet \
+            /tmp/tflex-v5/source/Winged_Character_V4_HighDetail_Hands_STL_STEP.zip \
+            /tmp/tflex-v5/output
+      - name: Install headless rendering environment
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb libgl1-mesa-dri libgl1 libegl1 libosmesa6
+      - name: Render actual 15-color STL geometry from five directions
+        run: |
+          xvfb-run -a -s '-screen 0 1280x1024x24' \
+            python scripts/preview_v5_reconstructed_geometry.py \
+            /tmp/tflex-v5/output/kit/STL_ASSEMBLY \
+            /tmp/tflex-v5/output/V5_REAL_STL_PREVIEW_5_VIEWS.png
+      - name: Independent geometry and release archive audit
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json,zipfile,hashlib
+          import trimesh
+          from OCP.IFSelect import IFSelect_RetDone
+          from OCP.STEPControl import STEPControl_Reader
+          from OCP.BRepCheck import BRepCheck_Analyzer
+          kit=Path('/tmp/tflex-v5/output/kit')
+          q=json.loads((kit/'QA_MANIFEST.json').read_text())
+          assert q['version']=='5.0'
+          assert q['print_ready_certified'] is False
+          assert q['original_sleeves_and_wings_untouched'] is True
+          assert q['stand_two_physical_dowels'] is True
+          assert len(q['parts'])==15 and len(q['joints'])==10
+          mask=trimesh.load_mesh(kit/'STL_ASSEMBLY/15_BLACK_PLAGUE_DOCTOR_MASK_OVERLAY.stl')
+          assert mask.is_watertight and mask.is_winding_consistent
+          assert mask.volume>1500 and mask.extents[2]>29
+          import hashlib
+          original=kit/'STL_ASSEMBLY/07_HAIR_AND_HEAD_WHITE.stl'
+          assert hashlib.sha256(original.read_bytes()).hexdigest()==q['white_hair_original_STL_sha256_unchanged']
+          for path in sorted((kit/'STL_ASSEMBLY').glob('*.stl')):
+              m=trimesh.load_mesh(path)
+              assert m.is_watertight and m.is_winding_consistent and m.volume>0,path
+          for path in sorted((kit/'STL_PRINT').glob('*.stl')):
+              m=trimesh.load_mesh(path)
+              assert m.is_watertight and m.is_winding_consistent and m.volume>0,path
+              assert abs(m.bounds[0,2])<0.03,path
+          for num in (1,2):
+              pin=kit/f'STL_PINS/BASE_TO_BOOT_{num}_PRINT.stl'
+              assert pin.is_file()
+              m=trimesh.load_mesh(pin)
+              assert m.is_watertight and m.volume>20
+          assert (kit/'COLOUR_FIGURINE_V5_15_PARTS_MOBILE.glb').stat().st_size>3000000
+          assert (kit/'T-FLEX_18_V5_15_COLOURS_10_PINS.step').stat().st_size>1000000
+          step=STEPControl_Reader()
+          assert step.ReadFile(str(kit/'T-FLEX_18_V5_15_COLOURS_10_PINS.step'))==IFSelect_RetDone
+          assert step.TransferRoots()>0 and BRepCheck_Analyzer(step.OneShape()).IsValid()
+          assert (kit/'STEP_TFLEX/15_BLACK_PLAGUE_DOCTOR_MASK_OVERLAY_FACETED.step').is_file()
+          assert Path('/tmp/tflex-v5/output/V5_REAL_STL_PREVIEW_5_VIEWS.png').stat().st_size>100000
+          archive=kit.parent/'Winged_Character_V5_15_Colors_10_Pins_TFLEX_STEP.zip'
+          assert archive.stat().st_size>20000000
+          with zipfile.ZipFile(archive) as f:
+              assert f.testzip() is None
+              assert len(f.namelist())==len(set(f.namelist())), 'Duplicate release entries'
+              assert 'STL_PRINT/15_BLACK_PLAGUE_DOCTOR_MASK_OVERLAY_on_bed.stl' in f.namelist()
+          print('V5_PASS: real separate black mask, intact white hair/wings/arms, two drilled boot/base pairs, 15 watertight STL, CAD STEP, ZIP')
+          PY
+      - name: Upload actual files and real preview even before merge
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Winged_Character_V5_15_Colors_10_Pins_STL_STEP
+          path: |
+            /tmp/tflex-v5/output/Winged_Character_V5_15_Colors_10_Pins_TFLEX_STEP.zip
+            /tmp/tflex-v5/output/V5_REAL_STL_PREVIEW_5_VIEWS.png
+            /tmp/tflex-v5/output/kit/QA_MANIFEST.json
+          retention-days: 30
+          if-no-files-found: warn
+      - name: Publish downloadable GitHub release only after all checks pass on main
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cat > /tmp/tflex-v5/output/RELEASE_NOTES.md <<'EOF'
+          # Winged character V5 — 150mm colour-split STL and T-FLEX CAD 18
+          
+          This verified release adds a separate **black plague-doctor mask shell**
+          to the white hair model; the hair/beak geometry underneath is unchanged.
+          The mask is a 1.3 mm *glue-on conformal overlay*, not a volumetric
+          hair subtraction. Print it as black material in a separate batch;
+          first dry-fit and glue it to the white part.
+          
+          Real new mechanical mounts: both boots and the stand now contain
+          two matching **3.4mm blind bores**, with two new **3mm pins**.
+          There are now **15 colour-separated pieces and 10 connector pins**;
+          V4's 8 connector pairs, full sleeves, wing geometry and hands remain.
+          T-FLEX STEP, STL, coloured GLB, BOM, fit coupons and CRC/SHA QA
+          are included. The preview is rendered from the actual STL files.
+          
+          **Not a physical 3D-printer acceptance:** printer model, slicer,
+          bed fit, supports, wing strength, filament shrink and glue fit
+          are unknown. This is still the earlier AI-reconstructed figurine,
+          not the game's original exact 3D mesh. Some eye/accent colours need paint.
+          EOF
+          gh release create figurine-15-colour-10-pin-v5-20261119 \
+            '/tmp/tflex-v5/output/Winged_Character_V5_15_Colors_10_Pins_TFLEX_STEP.zip' \
+            '/tmp/tflex-v5/output/V5_REAL_STL_PREVIEW_5_VIEWS.png' \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title 'V5 Winged Figurine — 15 colour parts, black mask, 10 pins and T-FLEX STEP' \
+            --notes-file /tmp/tflex-v5/output/RELEASE_NOTES.md \
+            --latest=false
