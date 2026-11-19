@@ -2,7 +2,7 @@ name: V6 independent free TripoSG geometry experiment
 on:
   push:
     branches: [research/new-master-multiview-20261119]
-    paths: [.github/workflows/v6-free-triposg-trial.yml]
+    paths: [.github/workflows/v6-free-triposg-trial.yml, scripts/try_free_triposg_v6.py]
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
