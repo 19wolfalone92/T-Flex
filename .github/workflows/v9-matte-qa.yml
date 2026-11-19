@@ -1,0 +1,29 @@
+name: V9.1 original-view matte repair synthetic QA (NO PRIVATE ART)
+on:
+  push:
+    branches: ["research/v9-source-reconstruction-kaggle-200mm-20261120"]
+    paths:
+      - scripts/v9_1_private_matte_repair.py
+      - tests/test_v9_1_private_matte_repair.py
+      - .github/workflows/v9-matte-qa.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  synthetic-only-no-gpu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install image tools for ground-truth source matte QA
+        run: python -m pip install "numpy>=1.26,<3" "Pillow>=10" "opencv-python-headless>=4.8,<5" pytest
+      - name: Never fetch original private game images in public CI
+        run: |
+          python -m pytest -v tests/test_v9_1_private_matte_repair.py
+          python -m py_compile scripts/v9_1_private_matte_repair.py
+      - name: Explicit release gate
+        run: |
+          echo "Synthetic transparency QA only. No source images, mesh or STL are publicly uploaded."
