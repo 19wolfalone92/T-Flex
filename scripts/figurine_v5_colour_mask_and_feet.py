@@ -363,6 +363,11 @@ def main(original_zip: Path, output_dir: Path):
         "игровых исходников.\\n",
         encoding="utf8",
     )
+    # V4 integrity log no longer describes rebuilt geometry; replace it.
+    if (kit/"SHA256.json").exists():
+        (kit/"SHA256.json").unlink()
+    for old_note in kit.glob("V4_*.txt"):
+        old_note.unlink()
     sums={}
     for file in sorted(kit.rglob("*")):
         if file.is_file():
