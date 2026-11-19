@@ -1,0 +1,54 @@
+name: High fidelity NEW master — Microsoft TRELLIS.2 (free, experimental)
+on:
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  make_true_new_mesh:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      SOURCE_URL: 'https://assets.meshy.ai/efb00ba8-043f-4ff5-829b-84a69a233d37/uploads/0_01a1ed78-d307-731f-99e4-04dc78479958.png?Expires=1795132800&Signature=I3sj6d~HsbYgBRkqOo3h4nbcFpCB~jEISWQf9m1IjguJaUnXE-u1nlKZW~nXObNVsxw-J6Ie~d1agJN0D-p0kd7ASLmmPjeF5mMAfx~DFDFGnWOBUyuh1MnxmWbyr-zUkwIuH-akLy97q80WQhXMBuiSf0o-yvRjpsvwrwDAtwjpQoCsJVADQ8hrW5i6Hg8X4EsejqixLQJbssHB4fusNxmpnrp1D86F3zKRqdJIOFI2cGr9bRN6tjJ1YH7WJVwlUU7fDCwr3GnQy4weC~0u~O8~sFCJXeOH6g0rf0itTO5wQzvQXIunZHHcHGm00rX~WF-2UYAzfGT0-4WeXdp8fQ__&Key-Pair-Id=K1VGYTHIYLM9UM'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - name: Install free public inference client
+        run: python -m pip install "gradio_client>=1.12,<3" "requests>=2.31" "trimesh>=4.8" "numpy>=1.26" Pillow "networkx>=3"
+      - name: Call Microsoft TRELLIS.2 for a genuinely new 3D mesh
+        run: python -u scripts/generate_new_master_trellis2.py
+      - name: Install VTK and virtual X rendering for real five-view verification
+        run: |
+          python -m pip install "vtk>=9.4,<10"
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb libgl1-mesa-dri libgl1 libegl1 libosmesa6
+      - name: Render actual mesh (never the original concept art)
+        run: |
+          xvfb-run -a -s '-screen 0 1280x1024x24' \
+            python scripts/preview_new_master.py \
+              /tmp/new-master-trellis2/new_master_geometry_150mm_REVIEW_ONLY.stl \
+              /tmp/new-master-trellis2/real_3d_five_views.png
+      - name: Validate no false claim of completed model/print
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json,trimesh
+          root=Path('/tmp/new-master-trellis2')
+          m=trimesh.load_mesh(root/'new_master_geometry_150mm_REVIEW_ONLY.stl')
+          meta=json.loads((root/'geometry_qa.json').read_text())
+          assert meta['print_ready_certified'] is False
+          assert meta['comparison_approved'] is False
+          assert 20_000<=len(m.faces)
+          assert abs(m.extents[2]-150)<.2
+          assert (root/'new_master_raw_trellis2.glb').stat().st_size>10000
+          assert (root/'real_3d_five_views.png').stat().st_size>30000
+          print('NEW MASTER ACTUAL GLB / STL / 5 VIEWS VALIDATED')
+          PY
+      - name: Save real model + preview; never merge without likeness approval
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: new-master-TRELLIS2-vs-original-review
+          path: /tmp/new-master-trellis2/
+          retention-days: 30
+          if-no-files-found: warn

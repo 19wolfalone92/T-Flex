@@ -1,0 +1,51 @@
+name: V6 wing mount engineering — actual STEP and STL tests
+on:
+  push:
+    branches: [research/new-master-multiview-20261119]
+    paths:
+      - .github/workflows/v6-wing-mount-qa.yml
+      - src/tflex_figurines/wing_mount_v6.py
+      - tests/test_wing_mount_v6.py
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  cad_proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install actual CadQuery OpenCascade and mesh geometry test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e . 'cadquery>=2.6,<3' 'pytest>=8,<10'
+      - name: Parse, validate non-interference, round-trip CAD solids and test safety
+        run: |
+          python -m compileall -q src tests
+          python -m pytest -q tests/test_wing_mount_v6.py
+      - name: Generate genuine wing-fit calibration prototypes on CI
+        run: |
+          python -m tflex_figurines.wing_mount_v6 /tmp/v6-wing-qa/kit
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import trimesh
+          kit=Path('/tmp/v6-wing-qa/kit')
+          m=json.loads((kit/'QA_MANIFEST.json').read_text())
+          assert m['not_a_real_character_model'] and not m['print_ready_certified']
+          assert len(m['wing_joints'])==2
+          assert len(list((kit/'CALIBRATION').glob('*.stl')))==4
+          for f in (kit/'STL_PRINT').glob('*.stl'):
+              x=trimesh.load_mesh(f)
+              assert x.is_watertight and x.volume>0, f
+          print('PASS: 4mm floating gap, 2 asymmetric pegs per wing, no intersection, STEP+STL valid')
+          PY
+      - name: Preserve V6 CAD fastening prototype, NOT a final figurine
+        uses: actions/upload-artifact@v4
+        with:
+          name: Winged_V6_Engineering_Proof_Not_Figurine
+          path: /tmp/v6-wing-qa/kit/
+          if-no-files-found: error
+          retention-days: 30

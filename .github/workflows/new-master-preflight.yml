@@ -1,0 +1,28 @@
+name: New master — inspect free multiview 3D generators
+on:
+  push:
+    branches: [research/new-master-multiview-20261119]
+    paths: [.github/workflows/new-master-preflight.yml]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  api:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: python -m pip install "gradio_client>=1.12,<3" requests
+      - name: Inspect ZeroGPU multiview and detailed models without generation
+        run: |
+          python - <<'PY'
+          from gradio_client import Client
+          for name in ('tencent/Hunyuan3D-2mv','tencent/Hunyuan3D-2.1','microsoft/TRELLIS.2'):
+              print('\n===',name,'===',flush=True)
+              try:
+                  cli=Client(name, verbose=False)
+                  print(cli.view_api(),flush=True)
+              except Exception as e:
+                  print('UNAVAILABLE',type(e).__name__,str(e)[:500],flush=True)
+          PY

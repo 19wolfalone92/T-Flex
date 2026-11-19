@@ -1,0 +1,68 @@
+name: V6 new sculpt candidate - generate and inspect (NOT print approved)
+on:
+  push:
+    branches:
+      - research/new-master-multiview-20261119
+    paths:
+      - scripts/v6_procedural_sculpt_candidate.py
+      - scripts/v6_render_candidate.py
+      - .github/workflows/v6-sculpt-candidate.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-real-v6-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      V6_OUT: ${{ github.workspace }}/v6_artifacts
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install geometry toolchain
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "numpy>=1.26" "scipy>=1.12" "trimesh>=4.5" "networkx>=3.2" "pillow>=10"
+      - name: Create independent V6 model
+        run: |
+          python scripts/v6_procedural_sculpt_candidate.py
+      - name: Fail-closed shape integrity and release prevention
+        run: |
+          python - <<'PY'
+          import json, os, trimesh
+          folder=os.environ["V6_OUT"]
+          qa=json.load(open(os.path.join(folder,"QA_CANDIDATE_NOT_RELEASED.json")))
+          assert qa["geometry_is_new"] and not qa["derivative_of_v5"]
+          assert qa["art_approved"] is False and qa["print_ready_certified"] is False
+          assert qa["final_colour_stl_released"] is False
+          assert qa["components"] >= 400
+          assert qa["watertight_components"] == qa["components"]
+          assert qa["positive_volume_components"] == qa["components"]
+          glb=os.path.join(folder,"WINGED_CHARACTER_V6_NEW_SCULPT_CANDIDATE.glb")
+          s=trimesh.load(glb,force="scene")
+          assert len(s.geometry) >= 400
+          assert abs(float(s.bounds[1,2]-s.bounds[0,2])-150)<0.05
+          print("DRAFT_3D_GEOMETRY_VALIDATED",qa["components"],"separate watertight bodies")
+          print("ARTISTIC_APPROVAL_PENDING; NO_PRINT_RELEASE")
+          PY
+      - name: Render true multiview screenshots from the mesh
+        run: |
+          python -m pip install "vtk>=9.3"
+          if command -v xvfb-run >/dev/null; then
+            xvfb-run -a -s "-screen 0 1280x1024x24" python scripts/v6_render_candidate.py
+          else
+            python scripts/v6_render_candidate.py
+          fi
+          test -s "$V6_OUT/V6_FRONT_RENDER.png"
+          test -s "$V6_OUT/V6_BACK_RENDER.png"
+          test -s "$V6_OUT/V6_LEFT_RENDER.png"
+          test -s "$V6_OUT/V6_RIGHT_RENDER.png"
+          test -s "$V6_OUT/V6_3Q_RENDER.png"
+      - name: Store candidate GLB, 5 actual renders and QA - not STL release
+        uses: actions/upload-artifact@v4
+        with:
+          name: V6_NEW_SCULPT_CANDIDATE_NOT_PRINT_READY
+          path: v6_artifacts/
+          retention-days: 30
+          if-no-files-found: error
