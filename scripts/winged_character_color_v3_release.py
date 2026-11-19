@@ -228,7 +228,7 @@ def main(source: Path, target: Path):
         rod.apply_translation(centre)
         rod.export(str(target/"STL_PINS"/(j["joint"]+"_ASSEMBLY.stl")))
         rod.apply_translation([0,0,-rod.bounds[0,2]])
-        rod.export(str(target/"STL_PINS"/(j["joint"]+"_PRINT.stl"))
+        rod.export(str(target/"STL_PINS"/(j["joint"]+"_PRINT.stl")))
     for diameter,pin_d in [(3.4,3.0),(2.3,1.9)]:
         block=(cq.Workplane("XY").box(11,11,6,centered=(True,True,False))
                .cut(cq.Workplane("XY").circle(diameter/2).extrude(6.1)))
