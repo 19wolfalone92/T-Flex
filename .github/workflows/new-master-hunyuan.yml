@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
       SOURCE_URL: 'https://assets.meshy.ai/efb00ba8-043f-4ff5-829b-84a69a233d37/uploads/0_01a1ed78-d307-731f-99e4-04dc78479958.png?Expires=1795132800&Signature=I3sj6d~HsbYgBRkqOo3h4nbcFpCB~jEISWQf9m1IjguJaUnXE-u1nlKZW~nXObNVsxw-J6Ie~d1agJN0D-p0kd7ASLmmPjeF5mMAfx~DFDFGnWOBUyuh1MnxmWbyr-zUkwIuH-akLy97q80WQhXMBuiSf0o-yvRjpsvwrwDAtwjpQoCsJVADQ8hrW5i6Hg8X4EsejqixLQJbssHB4fusNxmpnrp1D86F3zKRqdJIOFI2cGr9bRN6tjJ1YH7WJVwlUU7fDCwr3GnQy4weC~0u~O8~sFCJXeOH6g0rf0itTO5wQzvQXIunZHHcHGm00rX~WF-2UYAzfGT0-4WeXdp8fQ__&Key-Pair-Id=K1VGYTHIYLM9UM'
     steps:
       - uses: actions/checkout@v4
