@@ -1,8 +1,5 @@
 name: High fidelity NEW master — Microsoft TRELLIS.2 (free, experimental)
 on:
-  push:
-    branches: [research/new-master-multiview-20261119]
-    paths: [.github/workflows/new-master-trellis2.yml]
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
