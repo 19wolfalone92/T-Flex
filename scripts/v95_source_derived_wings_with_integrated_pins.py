@@ -42,7 +42,7 @@ def extract(rgba,side):
     if result.sum()<10000:raise ValueError("Wing reference pixels insufficient")
     return result
 
-def sculpt(image,mask,side,pitch=.32):
+def sculpt(image,mask,side,pitch=.18):
     ys,xs=np.nonzero(mask)
     x0,x1=max(xs.min()-7,0),min(xs.max()+8,1024)
     z0,z1=max(ys.min()-7,0),min(ys.max()+8,1024)
@@ -96,7 +96,7 @@ def sculpt(image,mask,side,pitch=.32):
     mesh.visual.vertex_colors=rgba
     return mesh,{"side":side,"faces":int(len(mesh.faces)),"watertight":bool(mesh.is_watertight),
          "body_count":int(mesh.body_count),"volume_mm3":round(float(mesh.volume),2),
-         "source_wing_pixels":int(mask.sum()),"bounds_mm":np.round(mesh.bounds,3).tolist(),
+         "source_wing_pixels":int(mask.sum()),"mesh_pitch_mm":pitch,"bounds_mm":np.round(mesh.bounds,3).tolist(),
          "male_key_centers_xz_mm":ROOT_PEGS[side],
          "male_key_diameter_mm":3.1,"resin_fit_tested":False}
 
