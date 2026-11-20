@@ -1,0 +1,61 @@
+name: V9.1 actual GLB 5-view QA synthetic test (NO PRIVATE ART)
+on:
+  push:
+    branches: ["research/v9-source-reconstruction-kaggle-200mm-20261120"]
+    paths:
+      - scripts/v9_1_private_real_glb_review.py
+      - .github/workflows/v9-real-glb-qa.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify-real-mesh-render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Dependencies for real offscreen polygon rendering
+        run: python -m pip install "trimesh>=4.5" "numpy>=1.26,<3" "vtk>=9.3" "Pillow>=10" "networkx>=3"
+      - name: Generate SYNTHETIC only 200 mm closed test solid and fake masks
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib,json,trimesh
+          from PIL import Image
+          folder=Path("out/v9_synthetic_qa");folder.mkdir(parents=True,exist_ok=True)
+          raw=folder/"private_fake";raw.mkdir(exist_ok=True)
+          mesh=trimesh.creation.box(extents=[40,35,200])
+          mesh.apply_translation([0,0,100])
+          mesh.export(folder/"synthetic_noncharacter_200mm.glb")
+          records=[]
+          for name in ("FRONT","BACK","LEFT","RIGHT","THREE_QUARTER"):
+              p=raw/("MV_"+name+"_RGBA_1024.png")
+              Image.new("RGBA",(1024,1024),(180,130,220,255)).save(p)
+              records.append({"view":name.lower(),"output_sha256":hashlib.sha256(p.read_bytes()).hexdigest()})
+          (raw/"V9_INPUT_QA.json").write_text(json.dumps({"records":records}))
+          PY
+      - name: Actually render five images from synthetic GLB
+        run: |
+          xvfb-run -a python scripts/v9_1_private_real_glb_review.py \
+            --glb out/v9_synthetic_qa/synthetic_noncharacter_200mm.glb \
+            --private-originals out/v9_synthetic_qa/private_fake \
+            --out out/v9_synthetic_qa/qa
+      - name: Verify physically present five true renders and never self-approve
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("out/v9_synthetic_qa/qa")
+          q=json.loads((p/"V91_PRIVATE_ART_QA.json").read_text())
+          assert q["geometry_count"]==1
+          assert len(q["five_real_model_views"])==5
+          assert q["likeness_approved"] is False
+          assert q["print_ready_certified"] is False
+          for key in q["five_real_model_views"]:
+              assert (p/("V91_REAL_MODEL_"+key+".png")).stat().st_size>3000
+          assert (p/"V91_PRIVATE_REAL_FIVE_VIEW_COMPARISON.png").stat().st_size>50000
+          print("REAL_FIVE_VIEW_QA_PIPELINE_GREEN; SYNTHETIC TEST ONLY")
+          PY
