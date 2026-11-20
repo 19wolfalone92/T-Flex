@@ -1,0 +1,30 @@
+name: V9 figure genuine 3D silhouette quality gate — synthetic CI
+on:
+  push:
+    branches: ["research/v9-source-reconstruction-kaggle-200mm-20261120"]
+    paths:
+      - scripts/v9_silhouette_qa.py
+      - tests/test_v9_silhouette_qa.py
+      - .github/workflows/v9-silhouette-qa.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  synthetic-silhouette-acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install actual image/geometry testing tools
+        run: python -m pip -q install "numpy>=1.26,<3" "opencv-python-headless>=4.8,<5" "Pillow>=10" pytest
+      - name: Test geometric image comparison using synthetic only references
+        run: |
+          python -m py_compile scripts/v9_silhouette_qa.py
+          python -m pytest -v tests/test_v9_silhouette_qa.py
+      - name: Privacy and final acceptance gate
+        run: |
+          echo "Only synthetic test images in public CI."
+          echo "Artistic approval remains manual; no final STL is released."
