@@ -1,5 +1,9 @@
 """V95 robust mechanical tests use synthetic blue fans, never private photos."""
 import numpy as np,pytest,trimesh
+pytest.importorskip("cv2")
+pytest.importorskip("scipy")
+pytest.importorskip("skimage")
+pytest.importorskip("cadquery")
 from PIL import Image,ImageDraw
 from scripts.v95_source_derived_wings_with_integrated_pins import build
 from scripts.v95_keyed_wing_sockets_cad import build as build_receivers
