@@ -54,7 +54,7 @@ def measure(original_alpha,rendered_rgb):
             "original_foreground_pixels":int(original.sum()),
             "render_foreground_pixels":int(candidate.sum())}, candidate
 
-def compare(refs:Path,renders:Path,out:Path,prefix="V9"):
+def compare(refs:Path,renders:Path,out:Path,prefix="V9",suffix="_RENDER.png"):
     manifest=json.loads((refs/"V9_INPUT_QA.json").read_text(encoding="utf8"))
     signatures={r["view"]:r["output_sha256"] for r in manifest["records"]}
     out.mkdir(parents=True,exist_ok=True)
@@ -66,7 +66,8 @@ def compare(refs:Path,renders:Path,out:Path,prefix="V9"):
         key="three_quarter" if view=="3Q" else view.lower()
         if not reference.is_file() or hashlib.sha256(reference.read_bytes()).hexdigest()!=signatures.get(key):
             raise ValueError("Source original screenshot hash mismatch "+view)
-        rp=renders/(prefix+"_"+view+"_RENDER.png")
+        rp=renders/(prefix+"_"+view+suffix)
+        if view=="3Q" and not rp.is_file():rp=renders/(prefix+"_THREE_QUARTER"+suffix)
         if not rp.is_file():raise FileNotFoundError("Missing real 3D render "+str(rp))
         image=Image.open(reference).convert("RGBA")
         record,candidate=measure(np.asarray(image)[:,:,3],Image.open(rp))
@@ -96,5 +97,6 @@ if __name__=="__main__":
     p.add_argument("--renders",type=Path,required=True)
     p.add_argument("--out",type=Path,required=True)
     p.add_argument("--prefix",default="V9")
+    p.add_argument("--suffix",default="_RENDER.png")
     a=p.parse_args()
-    print(json.dumps(compare(a.refs,a.renders,a.out,a.prefix),indent=2,ensure_ascii=False))
+    print(json.dumps(compare(a.refs,a.renders,a.out,a.prefix,a.suffix),indent=2,ensure_ascii=False))
