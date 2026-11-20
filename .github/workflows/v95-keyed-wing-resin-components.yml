@@ -1,0 +1,42 @@
+name: V95 resin-source sculpt with real fused wing pegs + STEP CAD (synthetic CI)
+on:
+  push:
+    branches: ["research/v9-source-reconstruction-kaggle-200mm-20261120"]
+    paths:
+      - scripts/v95_source_derived_wings_with_integrated_pins.py
+      - scripts/v95_keyed_wing_sockets_cad.py
+      - tests/test_v95_keyed_wing_sculpt_cad.py
+      - .github/workflows/v95-keyed-wing-resin-components.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  authentic-geometry-synthetic-reference:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    env:
+      OMP_NUM_THREADS: "2"
+      OPENBLAS_NUM_THREADS: "2"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install 3D meshing and mechanical CAD
+        run: |
+          python -m pip -q install --upgrade pip
+          python -m pip -q install "numpy>=1.26,<3" "scipy>=1.12" "Pillow>=10" \
+            "opencv-python-headless>=4.8" "scikit-image>=0.22" \
+            "trimesh>=4.5" "cadquery>=2.5" pytest
+      - name: Test on SYNTHETIC 1024 game-like silhouette only
+        run: |
+          python -m py_compile scripts/v95_source_derived_wings_with_integrated_pins.py
+          python -m py_compile scripts/v95_keyed_wing_sockets_cad.py
+          python -m pytest -v tests/test_v95_keyed_wing_sculpt_cad.py
+      - name: Source privacy, honest print readiness
+        run: |
+          echo "Original 18 user screenshots not in public repository."
+          echo "Only game-backed locally generated wing meshes are partial."
+          echo "CAD body union and final artist-approved figurine remain incomplete."
