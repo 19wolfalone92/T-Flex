@@ -1,0 +1,30 @@
+name: T-FLEX 18 native Windows export prerequisite
+on:
+  push:
+    branches: ['feature/native-tflex-windows-export-20261123']
+    paths:
+      - 'scripts/windows/native/**'
+      - '.github/workflows/tflex-native-windows.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: tflex-native-windows-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  vendor-api:
+    runs-on: windows-2022
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check official Windows runtime and a normal writable API licence
+        shell: pwsh
+        run: ./scripts/windows/native/probe-tflex18.ps1
+      - name: Retain probe evidence, never an unverified figurine
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-tflex-windows-evidence
+          path: native-tflex-evidence/
+          retention-days: 3
+          if-no-files-found: error
